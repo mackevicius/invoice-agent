@@ -1,0 +1,3 @@
+# Serverless AWS, no Kubernetes
+
+We deploy to AWS (target market is UK/US/AU/NZ, where AWS dominates postings) as Lambda for the API and worker, SQS for the queue and S3 for files, with Postgres on Neon and the web app on Vercel. Nothing runs when nobody uses it, so a portfolio app costs close to $0. Kubernetes was rejected: an EKS cluster costs $0.10/hour (~$73/month) before any servers, which is unjustifiable at demo traffic. We would move to containers on Kubernetes when workers need to run longer than Lambda allows or steady traffic makes per-request pricing more expensive than always-on servers. An on-demand EKS scaling demo (create, load, record, delete) is an optional final ticket.
