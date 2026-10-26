@@ -80,6 +80,21 @@
   font-variant-numeric: tabular-nums;
 }
 
+.uploadAction {
+  flex-shrink: 0;
+  padding: 16px 24px 0;
+}
+
+.uploadButton {
+  width: 100%;
+  background: #c4e9d4;
+  color: #20573a;
+}
+
+.uploadButton:hover {
+  background: #d8f0e2;
+}
+
 .invoiceList {
   min-height: 0;
   flex: 1;
@@ -339,6 +354,203 @@
   overflow-wrap: anywhere;
 }
 
+.uploadPage,
+.pipeline,
+.readFields,
+.reasons {
+  padding: 28px 40px;
+}
+
+.uploadHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.uploadHeading h1 {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.dropZone {
+  position: relative;
+  display: flex;
+  min-height: 240px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px;
+  border: 1px dashed #90a69a;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  text-align: center;
+}
+
+.dropZone.dragging,
+.dropZone:focus-within {
+  outline: 2px solid #3b7955;
+  outline-offset: 3px;
+  background: #eef7f1;
+}
+
+.dropZone strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.dropZone span {
+  color: #66786d;
+  font-size: 12px;
+}
+
+.dropZone input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.uploadActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.uploadError {
+  margin-top: 20px;
+  color: #9a3c36;
+  font-size: 14px;
+}
+
+.pipeline,
+.readFields {
+  border-bottom: 1px solid #e1e7e3;
+  background: #fff;
+}
+
+.pipeline h2,
+.readFields h2,
+.reasons h2 {
+  margin-bottom: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pipeline ol {
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
+}
+
+.pipeline li {
+  display: flex;
+  min-width: 160px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 0 16px;
+  border-bottom: 2px solid #b9c7bf;
+}
+
+.pipeline li[data-status='Completed'] {
+  border-color: #3b7955;
+  color: #28643d;
+}
+
+.pipeline li[data-status='Failed'] {
+  border-color: #d09186;
+  color: #9a3c36;
+}
+
+.pipeline li[data-status='Running'] {
+  border-color: #75b9d4;
+  color: #225e72;
+}
+
+.pipeline li strong,
+.pipeline li span {
+  display: block;
+  font-size: 12px;
+}
+
+.pipeline li span {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.linesScroll {
+  overflow-x: auto;
+}
+
+.readFields table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.readFields th,
+.readFields td {
+  padding: 12px 8px;
+  border-bottom: 1px solid #e1e7e3;
+}
+
+.readFields th {
+  color: #66786d;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.readFields td:first-child {
+  min-width: 120px;
+  overflow-wrap: anywhere;
+}
+
+.readFields td:not(:first-child),
+.readFields th:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.readTotals {
+  display: flex;
+  justify-content: flex-end;
+  gap: 32px;
+  margin-top: 24px;
+  font-size: 12px;
+}
+
+.readTotals dt {
+  margin-bottom: 8px;
+  color: #66786d;
+}
+
+.readTotals dd {
+  font-family: var(--font-mono);
+}
+
+.reasons li {
+  margin-bottom: 8px;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .loadingRow {
   min-height: 76px;
   padding: 20px 16px;
@@ -414,6 +626,9 @@
     height: 42px;
     padding: 0 20px;
   }
+  .uploadAction {
+    padding: 12px 20px 0;
+  }
   .companyFooter {
     min-height: 42px;
     padding: 10px 20px;
@@ -432,6 +647,19 @@
   .recordId {
     padding: 20px;
   }
+  .uploadPage,
+  .pipeline,
+  .readFields,
+  .reasons {
+    padding: 24px 20px;
+  }
+  .uploadHeading h1 {
+    font-size: 20px;
+  }
+  .dropZone {
+    min-height: 200px;
+    padding: 24px 16px;
+  }
   .loadingDetail,
   .empty,
   .error {
@@ -443,6 +671,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
   .detailHeader {
     animation: none;
   }

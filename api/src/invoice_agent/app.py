@@ -8,11 +8,19 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from invoice_agent.database import initialize_database
 from invoice_agent.demo_company.api import DemoCompanies
+from invoice_agent.invoice_reading.processing import InvoiceProcessing
+from invoice_agent.invoice_reading.providers import configured_reader
+from invoice_agent.invoice_reading.queue import InProcessInvoiceQueue, InvoiceQueue
+from invoice_agent.invoice_reading.reading import InvoiceReader
 from invoice_agent.invoices.api import create_invoice_router
 
 
 def create_app(
-    database_url: str | None = None, cookie_secure: bool | None = None
+    database_url: str | None = None,
+    cookie_secure: bool | None = None,
+    *,
+    reader: InvoiceReader | None = None,
+    invoice_queue: InvoiceQueue | None = None,
 ) -> FastAPI:
     url = database_url or os.environ["DATABASE_URL"]
     secure = (
@@ -20,11 +28,19 @@ def create_app(
         if cookie_secure is not None
         else os.environ.get("COOKIE_SECURE", "true").lower() != "false"
     )
+    processing = InvoiceProcessing(url, reader=reader or configured_reader())
+    queue = invoice_queue or InProcessInvoiceQueue(processing.process)
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         initialize_database(url)
-        yield
+        if isinstance(queue, InProcessInvoiceQueue):
+            queue.start()
+        try:
+            yield
+        finally:
+            if isinstance(queue, InProcessInvoiceQueue):
+                queue.close()
 
     app = FastAPI(title="Invoice Agent", lifespan=lifespan)
 
@@ -47,5 +63,5 @@ def create_app(
     app.add_api_route(
         "/api/demo-company", companies.start, methods=["POST"], tags=["Demo Company"]
     )
-    app.include_router(create_invoice_router(url, companies))
+    app.include_router(create_invoice_router(url, companies, processing, queue))
     return app

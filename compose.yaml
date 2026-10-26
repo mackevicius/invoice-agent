@@ -21,6 +21,11 @@ services:
       DATABASE_URL: postgresql://invoice:invoice@db:5432/invoice
       TEST_DATABASE_URL: postgresql://invoice:invoice@db:5432/invoice
       COOKIE_SECURE: 'false'
+      INVOICE_MODEL_PROVIDER: ${INVOICE_MODEL_PROVIDER:-openai}
+      INVOICE_MODEL: ${INVOICE_MODEL:-}
+      INVOICE_FAKE_RESPONSE: ${INVOICE_FAKE_RESPONSE:-/app/src/invoice_agent/invoice_reading/fixtures/readable.json}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - '127.0.0.1:${API_PORT:-8000}:8000'
     volumes:

@@ -1,8 +1,10 @@
 # Invoice Agent
 
 Checks supplier Invoices against Purchase Orders and Goods Receipts.
-This walking skeleton provides a private, seeded Demo Company and its Invoice list
-and header in the Split view. No model calls are needed to browse the samples.
+Visitors get a private, seeded Demo Company and can upload an Invoice to watch
+its fields being read in the Split view. No model calls are needed to browse
+the samples. Supplier lookup and Three-Way Match are later steps; uploaded
+Invoices currently finish In Review and are never Auto-Approved.
 
 ## Run Locally
 
@@ -38,10 +40,49 @@ WEB_PORT=3001 API_PORT=8001 POSTGRES_PORT=55433 docker compose up --build
 These are development-only database credentials and HTTP cookies. The API uses
 Secure cookies by default outside Compose; a hosted deployment requires HTTPS.
 
+## Invoice Reading
+
+Choose **Upload Invoice** to open the upload page in the right pane. Select or
+drop one PDF, PNG, JPEG, WebP or GIF up to 10 MB. After upload, the new Invoice
+is selected automatically. Its fields and saved agent steps refresh once a
+second while it is Processing. Unreadable files finish In Review with a reason.
+
+Compose defaults to `INVOICE_MODEL_PROVIDER=openai`. Set `OPENAI_API_KEY` in your
+local environment before uploading with the real model. To use Anthropic, set
+`ANTHROPIC_API_KEY` and restart with:
+
+```sh
+INVOICE_MODEL_PROVIDER=anthropic docker compose up --build
+```
+
+No code changes are needed to switch providers. `INVOICE_MODEL` optionally
+overrides the default model (`gpt-4.1-mini` or `claude-haiku-4-5-20251001`).
+Never commit API keys. A missing key or provider failure sends the Invoice
+In Review with a reading-unavailable reason.
+
+For free, deterministic local runs and the browser tests, use:
+
+```sh
+INVOICE_MODEL_PROVIDER=fake docker compose up --build
+```
+
+The fake returns the fixed fields in
+`api/src/invoice_agent/invoice_reading/fixtures/readable.json` for every file;
+it does not read the document. `INVOICE_FAKE_RESPONSE` can point to another JSON
+response with the same `{"invoice": ...}` shape, or `{"invoice": null}` for an
+unreadable result. The path must be accessible inside the API container.
+
+The API stores the file and a Processing Invoice in Postgres, then queues the
+Demo Company and Invoice IDs through `InvoiceQueue`. The local adapter runs a
+LangGraph worker on its own thread. Files and step records are deleted with
+their Demo Company. This in-process queue is for local development: restarting
+the API loses queued jobs. Deployment will add SQS and S3 (ADR 0001).
+
 ## Checks and Tests
 
 API tests use real Postgres with pgvector and a separate, disposable schema per
-test. They exercise the HTTP API, not internal database functions.
+test. They exercise the HTTP API and the public Process an Invoice interface
+with a scripted model, not internal database functions or paid providers.
 
 ```sh
 docker compose run --rm api uv run --locked pytest
@@ -52,8 +93,8 @@ docker compose exec web npm run typecheck
 docker compose exec web npm run lint
 ```
 
-To compile production assets and run the smoke test against the local
-development server, install Node.js 24, then with the stack running:
+To compile production assets and run the browser tests, install Node.js 24 and
+start the stack with `INVOICE_MODEL_PROVIDER=fake`, then run:
 
 ```sh
 cd web
@@ -63,16 +104,18 @@ npx playwright install chromium
 PLAYWRIGHT_BASE_URL=http://localhost:3000 npm test
 ```
 
-The test covers real Invoice selection and Demo Company persistence on desktop
-and mobile. CI runs Python lint, formatting, types and HTTP tests, then web
-types, lint, a production build, and the browser test against that production
-build on every push and pull request. No cloud credentials or paid services are
-required.
+The browser tests cover Invoice selection, Demo Company persistence and expiry,
+and upload through the real API and worker on desktop and mobile. CI runs Python
+lint, formatting, types and tests, then web types, lint, a production build, and
+the browser tests against that production build. CI uses the scripted model;
+no cloud credentials or paid services are required.
 
 ## Layout
 
 - `api/src/invoice_agent/demo_company/`: session startup, expiry, seeding, and tests.
 - `api/src/invoice_agent/invoices/`: company-scoped Invoice HTTP endpoints and tests.
+- `api/src/invoice_agent/invoice_reading/`: typed reading, model providers, graph,
+  local queue, and Process an Invoice tests.
 - `api/src/invoice_agent/schema.sql`: Postgres schema and pgvector extension.
 - `web/src/features/invoices/`: API client, Split view, and its browser test.
 - `web/src/components/ui/`: generated shadcn/ui components.

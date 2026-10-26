@@ -53,6 +53,8 @@ jobs:
         env:
           DATABASE_URL: postgresql://invoice:invoice@127.0.0.1:55432/invoice
           COOKIE_SECURE: 'false'
+          INVOICE_MODEL_PROVIDER: fake
+          INVOICE_FAKE_RESPONSE: api/src/invoice_agent/invoice_reading/fixtures/readable.json
         run: |
           uv run --directory api --locked uvicorn invoice_agent.app:create_app --factory --host 127.0.0.1 --port 8000 > /tmp/invoice-api.log 2>&1 &
           npm --prefix web run start -- --hostname 127.0.0.1 > /tmp/invoice-web.log 2>&1 &

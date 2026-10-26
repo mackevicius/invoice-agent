@@ -1,0 +1,18 @@
+{
+  "invoice": {
+    "supplier_name": "Baltic Office Supplies",
+    "invoice_number": "INV-2026-42",
+    "issued_on": "2026-10-20",
+    "currency": "EUR",
+    "lines": [
+      {
+        "description": "Printer paper",
+        "quantity": "3",
+        "unit_price": "12.50"
+      }
+    ],
+    "subtotal": "37.50",
+    "tax": "7.88",
+    "total": "45.38"
+  }
+}

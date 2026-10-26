@@ -67,22 +67,53 @@ CREATE TABLE IF NOT EXISTS goods_receipt_lines (
 CREATE TABLE IF NOT EXISTS invoices (
     id UUID PRIMARY KEY,
     company_id UUID NOT NULL REFERENCES demo_companies(id) ON DELETE CASCADE,
-    supplier_id UUID NOT NULL,
-    supplier_name TEXT NOT NULL,
-    invoice_number TEXT NOT NULL,
-    total NUMERIC(14, 2) NOT NULL CHECK (total >= 0),
-    currency TEXT NOT NULL DEFAULT 'EUR' CHECK (currency = 'EUR'),
+    supplier_id UUID,
+    supplier_name TEXT,
+    invoice_number TEXT,
+    total NUMERIC(14, 2) CHECK (total >= 0),
+    currency TEXT NOT NULL DEFAULT 'EUR' CHECK (currency ~ '^[A-Z]{3}$'),
     status TEXT NOT NULL CHECK (
         status IN ('Processing', 'In Review', 'Auto-Approved', 'Approved', 'Rejected')
     ),
-    issued_on DATE NOT NULL,
+    issued_on DATE,
     created_at TIMESTAMPTZ NOT NULL,
     UNIQUE (company_id, id),
     FOREIGN KEY (company_id, supplier_id) REFERENCES suppliers(company_id, id)
 );
 
+ALTER TABLE invoices
+    ALTER COLUMN supplier_id DROP NOT NULL,
+    ALTER COLUMN supplier_name DROP NOT NULL,
+    ALTER COLUMN invoice_number DROP NOT NULL,
+    ALTER COLUMN total DROP NOT NULL,
+    ALTER COLUMN issued_on DROP NOT NULL,
+    ADD COLUMN IF NOT EXISTS file_name TEXT,
+    ADD COLUMN IF NOT EXISTS content_type TEXT,
+    ADD COLUMN IF NOT EXISTS file_content BYTEA,
+    ADD COLUMN IF NOT EXISTS read_fields JSONB,
+    ADD COLUMN IF NOT EXISTS reasons JSONB NOT NULL DEFAULT '[]';
+
+ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_currency_check;
+ALTER TABLE invoices ADD CONSTRAINT invoices_currency_check
+    CHECK (currency ~ '^[A-Z]{3}$');
+
 CREATE INDEX IF NOT EXISTS invoices_company_created
     ON invoices(company_id, created_at DESC, id);
+
+CREATE TABLE IF NOT EXISTS invoice_steps (
+    company_id UUID NOT NULL,
+    invoice_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL CHECK (status IN ('Pending', 'Running', 'Completed', 'Failed')),
+    inputs JSONB NOT NULL,
+    outputs JSONB,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    PRIMARY KEY (company_id, invoice_id, name),
+    FOREIGN KEY (company_id, invoice_id)
+        REFERENCES invoices(company_id, id) ON DELETE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS invoice_lines (
     id UUID PRIMARY KEY,

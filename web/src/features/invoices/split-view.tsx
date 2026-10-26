@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronRight,
@@ -9,8 +9,8 @@ import {
   ReceiptText,
   RotateCw,
   TriangleAlert,
+  Upload,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -20,23 +20,16 @@ import {
 } from '@/components/ui/tooltip';
 import { startDemoCompany } from '@/features/demo-company/api';
 import { ApiError, DemoCompanyExpiredError } from '@/lib/api';
-import { getInvoice, listInvoices, type InvoiceHeader } from './api';
+import {
+  getInvoice,
+  listInvoices,
+  money,
+  type InvoiceDetail,
+  type InvoiceHeader,
+} from './api';
+import { InvoiceDetails, statusClass } from './invoice-details';
+import { UploadInvoice } from './upload-invoice';
 import styles from './split-view.module.css';
-
-const statusClass: Record<InvoiceHeader['status'], string> = {
-  Processing: styles.processing,
-  'In Review': styles.review,
-  'Auto-Approved': styles.autoApproved,
-  Approved: styles.approved,
-  Rejected: styles.rejected,
-};
-
-function money(invoice: InvoiceHeader): string {
-  return new Intl.NumberFormat('en-IE', {
-    style: 'currency',
-    currency: invoice.currency,
-  }).format(Number(invoice.total));
-}
 
 function errorMessage(error: unknown): string {
   return error instanceof ApiError
@@ -46,7 +39,11 @@ function errorMessage(error: unknown): string {
 
 export function SplitView() {
   const queryClient = useQueryClient();
+  const main = useRef<HTMLElement>(null);
   const [chosenId, setChosenId] = useState<string | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadSessionError, setUploadSessionError] =
+    useState<DemoCompanyExpiredError | null>(null);
 
   const demoCompany = useQuery({
     queryKey: ['demo-company'],
@@ -58,6 +55,10 @@ export function SplitView() {
     queryKey: ['invoices', companyId],
     queryFn: ({ signal }) => listInvoices(signal),
     enabled: companyId !== undefined,
+    refetchInterval: (query) =>
+      query.state.data?.some((invoice) => invoice.status === 'Processing')
+        ? 1000
+        : false,
   });
 
   const invoices = invoiceList.isSuccess ? invoiceList.data : [];
@@ -72,9 +73,16 @@ export function SplitView() {
       selectedId === null
         ? skipToken
         : ({ signal }) => getInvoice(selectedId, signal),
+    enabled: !uploadOpen,
+    refetchInterval: (query) =>
+      query.state.data?.status === 'Processing' ? 1000 : false,
   });
 
-  const error = demoCompany.error ?? invoiceList.error ?? invoice.error;
+  const error =
+    demoCompany.error ??
+    invoiceList.error ??
+    invoice.error ??
+    uploadSessionError;
   const loading = !demoCompany.isError && invoiceList.isPending;
 
   function refresh() {
@@ -84,7 +92,23 @@ export function SplitView() {
   }
 
   function startNewDemoCompany() {
+    setUploadSessionError(null);
+    setUploadOpen(false);
     void queryClient.resetQueries({ queryKey: ['demo-company'] });
+  }
+
+  function uploaded(invoice: InvoiceDetail) {
+    queryClient.setQueryData(['invoices', companyId, invoice.id], invoice);
+    queryClient.setQueryData<InvoiceHeader[]>(
+      ['invoices', companyId],
+      (current) => [
+        invoice,
+        ...(current ?? []).filter((existing) => existing.id !== invoice.id),
+      ],
+    );
+    setChosenId(invoice.id);
+    setUploadOpen(false);
+    main.current?.scrollTo({ top: 0 });
   }
 
   let content: ReactNode;
@@ -106,6 +130,15 @@ export function SplitView() {
     );
   } else if (loading) {
     content = <LoadingInvoice />;
+  } else if (uploadOpen) {
+    content = (
+      <UploadInvoice
+        key={companyId}
+        onUploaded={uploaded}
+        onCancel={() => setUploadOpen(false)}
+        onExpired={setUploadSessionError}
+      />
+    );
   } else if (selectedId === null) {
     content = (
       <div className={styles.empty}>
@@ -135,6 +168,20 @@ export function SplitView() {
           </div>
         </header>
 
+        <div className={styles.uploadAction}>
+          <Button
+            className={styles.uploadButton}
+            onClick={() => {
+              setUploadOpen(true);
+              main.current?.scrollTo({ top: 0 });
+            }}
+            disabled={loading || Boolean(error)}
+            aria-pressed={uploadOpen}
+          >
+            <Upload aria-hidden="true" /> Upload Invoice
+          </Button>
+        </div>
+
         <div className={styles.listHeading}>
           <h2>Invoices</h2>
           <span className={styles.count}>
@@ -159,8 +206,12 @@ export function SplitView() {
                   <button
                     type="button"
                     className={styles.invoiceButton}
-                    aria-pressed={selectedId === invoice.id}
-                    onClick={() => setChosenId(invoice.id)}
+                    aria-pressed={!uploadOpen && selectedId === invoice.id}
+                    onClick={() => {
+                      setChosenId(invoice.id);
+                      setUploadOpen(false);
+                      main.current?.scrollTo({ top: 0 });
+                    }}
                   >
                     <span className={styles.invoiceRow}>
                       <span className={styles.invoiceIdentity}>
@@ -169,16 +220,16 @@ export function SplitView() {
                           className={`${styles.statusDot} ${statusClass[invoice.status]}`}
                         />
                         <span className={styles.invoiceNumber}>
-                          {invoice.invoice_number}
+                          {invoice.invoice_number ?? 'Reading Invoice'}
                         </span>
                       </span>
                       <span className={styles.listTotal}>{money(invoice)}</span>
                     </span>
                     <span
                       className={styles.supplierName}
-                      title={invoice.supplier}
+                      title={invoice.supplier ?? undefined}
                     >
-                      {invoice.supplier}
+                      {invoice.supplier ?? invoice.status}
                     </span>
                     <span className="sr-only">{invoice.status}</span>
                   </button>
@@ -208,18 +259,25 @@ export function SplitView() {
         </footer>
       </aside>
 
-      <main className={styles.main} aria-label="Invoice details">
+      <main ref={main} className={styles.main} aria-label="Invoice details">
         <div className={styles.toolbar}>
           <div className={styles.breadcrumb}>
             <FileText aria-hidden="true" size={15} />
             <span>Invoices</span>
-            {selected && (
+            {uploadOpen ? (
               <>
                 <ChevronRight aria-hidden="true" size={14} />
-                <span className={styles.breadcrumbNumber}>
-                  {selected.invoice_number}
-                </span>
+                <span>Upload Invoice</span>
               </>
+            ) : (
+              selected && (
+                <>
+                  <ChevronRight aria-hidden="true" size={14} />
+                  <span className={styles.breadcrumbNumber}>
+                    {selected.invoice_number ?? 'Reading Invoice'}
+                  </span>
+                </>
+              )
             )}
           </div>
           <Tooltip>
@@ -242,51 +300,6 @@ export function SplitView() {
         <div aria-live="polite">{content}</div>
       </main>
     </div>
-  );
-}
-
-function InvoiceDetails({ invoice }: { invoice: InvoiceHeader }) {
-  return (
-    <article>
-      <header className={styles.detailHeader}>
-        <div>
-          <Badge
-            className={`${styles.statusBadge} ${statusClass[invoice.status]}`}
-          >
-            <span aria-hidden="true" className={styles.statusDot} />
-            {invoice.status}
-          </Badge>
-          <h1>{invoice.invoice_number}</h1>
-          <p className={styles.detailSupplier}>{invoice.supplier}</p>
-        </div>
-        <div className={styles.total}>
-          <p>Invoice total</p>
-          <strong aria-label="Invoice total">{money(invoice)}</strong>
-        </div>
-      </header>
-
-      <dl className={styles.metadata}>
-        <div>
-          <dt>Invoice date</dt>
-          <dd>
-            <time dateTime={invoice.issued_on}>
-              {new Intl.DateTimeFormat('en-GB', {
-                dateStyle: 'medium',
-                timeZone: 'UTC',
-              }).format(new Date(invoice.issued_on))}
-            </time>
-          </dd>
-        </div>
-        <div>
-          <dt>Currency</dt>
-          <dd>{invoice.currency}</dd>
-        </div>
-      </dl>
-      <dl className={styles.recordId}>
-        <dt>Record ID</dt>
-        <dd>{invoice.id}</dd>
-      </dl>
-    </article>
   );
 }
 
