@@ -8,8 +8,8 @@ from langgraph.graph import END, START, StateGraph
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from invoice_agent.clients.invoice_reader import InvoiceFile, InvoiceReader
-from invoice_agent.schemas.invoices import InvoiceDetail
+from invoice_agent.clients.invoice_reader import InvoiceReader
+from invoice_agent.schemas.invoices import InvoiceDetail, InvoiceFile, InvoiceHeader
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,17 @@ class InvoiceProcessing:
     def process(self, company_id: UUID, invoice_id: UUID) -> InvoiceDetail:
         self.graph.invoke({"company_id": company_id, "invoice_id": invoice_id})
         return self._require(company_id, invoice_id)
+
+    def list_headers(self, company_id: UUID) -> list[InvoiceHeader]:
+        with psycopg.connect(self.database_url, row_factory=dict_row) as connection:
+            invoices = connection.execute(
+                """SELECT id, invoice_number, supplier_name AS supplier,
+                          total, currency, status, issued_on
+                   FROM invoices WHERE company_id = %s
+                   ORDER BY created_at DESC, id""",
+                (company_id,),
+            ).fetchall()
+        return [InvoiceHeader.model_validate(invoice) for invoice in invoices]
 
     def get(self, company_id: UUID, invoice_id: UUID) -> InvoiceDetail | None:
         with psycopg.connect(self.database_url, row_factory=dict_row) as connection:

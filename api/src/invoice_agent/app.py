@@ -8,11 +8,11 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from invoice_agent.clients.invoice_reader import InvoiceReader
 from invoice_agent.clients.reader_settings import configured_reader
-from invoice_agent.db.schema import initialize_database
+from invoice_agent.db.initialize import initialize_database
 from invoice_agent.routes.demo_company import create_demo_company_router
 from invoice_agent.routes.invoices import create_invoice_router
-from invoice_agent.services.demo_companies import DemoCompanies
-from invoice_agent.services.invoice_processing import InvoiceProcessing
+from invoice_agent.services.demo_company import DemoCompanies
+from invoice_agent.services.invoices import InvoiceProcessing
 from invoice_agent.workers.invoice_queue import InProcessInvoiceQueue, InvoiceQueue
 
 
@@ -60,7 +60,7 @@ def create_app(
             connection.execute("SELECT 1")
         return {"status": "ok"}
 
-    companies = DemoCompanies(database_url=url, cookie_secure=secure)
-    app.include_router(create_demo_company_router(companies))
-    app.include_router(create_invoice_router(url, companies, processing, queue))
+    companies = DemoCompanies(database_url=url)
+    app.include_router(create_demo_company_router(companies, cookie_secure=secure))
+    app.include_router(create_invoice_router(companies, processing, queue))
     return app

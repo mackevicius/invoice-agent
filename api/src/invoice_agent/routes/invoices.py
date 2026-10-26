@@ -1,17 +1,12 @@
 from typing import Annotated
 from uuid import UUID
 
-import psycopg
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
-from psycopg.rows import dict_row
 
-from invoice_agent.clients.invoice_reader import InvoiceFile
-from invoice_agent.schemas.invoices import InvoiceDetail, InvoiceHeader
-from invoice_agent.services.demo_companies import DemoCompanies
-from invoice_agent.services.invoice_processing import (
-    InvoiceNotFound,
-    InvoiceProcessing,
-)
+from invoice_agent.routes.demo_company import require_demo_company
+from invoice_agent.schemas.invoices import InvoiceDetail, InvoiceFile, InvoiceHeader
+from invoice_agent.services.demo_company import DemoCompanies
+from invoice_agent.services.invoices import InvoiceNotFound, InvoiceProcessing
 from invoice_agent.workers.invoice_queue import InvoiceQueue, ProcessInvoiceJob
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -25,17 +20,17 @@ SUPPORTED_CONTENT_TYPES = {
 
 
 def create_invoice_router(
-    database_url: str,
     companies: DemoCompanies,
     processing: InvoiceProcessing,
     queue: InvoiceQueue,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/invoices", tags=["Invoices"])
+    current_company_id = require_demo_company(companies)
 
     @router.post("", status_code=202)
     async def upload_invoice(
         file: UploadFile,
-        company_id: Annotated[UUID, Depends(companies.identify)],
+        company_id: Annotated[UUID, Depends(current_company_id)],
     ) -> InvoiceDetail:
         try:
             content_type = (file.content_type or "").lower()
@@ -71,22 +66,14 @@ def create_invoice_router(
 
     @router.get("")
     def list_invoices(
-        company_id: Annotated[UUID, Depends(companies.identify)],
+        company_id: Annotated[UUID, Depends(current_company_id)],
     ) -> list[InvoiceHeader]:
-        with psycopg.connect(database_url, row_factory=dict_row) as connection:
-            invoices = connection.execute(
-                """SELECT id, invoice_number, supplier_name AS supplier,
-                          total, currency, status, issued_on
-                   FROM invoices WHERE company_id = %s
-                   ORDER BY created_at DESC, id""",
-                (company_id,),
-            ).fetchall()
-        return [InvoiceHeader.model_validate(invoice) for invoice in invoices]
+        return processing.list_headers(company_id)
 
     @router.get("/{invoice_id}")
     def get_invoice(
         invoice_id: UUID,
-        company_id: Annotated[UUID, Depends(companies.identify)],
+        company_id: Annotated[UUID, Depends(current_company_id)],
     ) -> InvoiceDetail:
         invoice = processing.get(company_id, invoice_id)
         if invoice is None:

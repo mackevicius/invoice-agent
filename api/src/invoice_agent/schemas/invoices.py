@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
@@ -6,6 +7,13 @@ from uuid import UUID
 from pydantic import BaseModel, Field, JsonValue
 
 from invoice_agent.schemas.invoice_fields import InvoiceFields
+
+
+@dataclass(frozen=True)
+class InvoiceFile:
+    filename: str
+    content_type: str
+    content: bytes
 
 
 class InvoiceHeader(BaseModel):

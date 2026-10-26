@@ -2,13 +2,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from invoice_agent.schemas.invoice_fields import InvoiceFields
-
-
-@dataclass(frozen=True)
-class InvoiceFile:
-    filename: str
-    content_type: str
-    content: bytes
+from invoice_agent.schemas.invoices import InvoiceFile
 
 
 class InvoiceReader(Protocol):

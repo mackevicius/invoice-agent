@@ -7,8 +7,8 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import ValidationError
 
-from invoice_agent.clients.invoice_reader import InvoiceFile
 from invoice_agent.schemas.invoice_fields import InvoiceFields, InvoiceReadResult
+from invoice_agent.schemas.invoices import InvoiceFile
 
 
 @dataclass(frozen=True)

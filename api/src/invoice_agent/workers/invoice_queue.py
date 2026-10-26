@@ -7,7 +7,7 @@ from typing import Protocol
 from uuid import UUID
 
 from invoice_agent.schemas.invoices import InvoiceDetail
-from invoice_agent.services.invoice_processing import InvoiceNotFound
+from invoice_agent.services.invoices import InvoiceNotFound
 
 logger = logging.getLogger(__name__)
 

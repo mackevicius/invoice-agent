@@ -112,17 +112,19 @@ no cloud credentials or paid services are required.
 
 ## Layout
 
-The API is organised by layer (ADR 0004):
+The API is organised by layer (ADR 0004). A feature keeps the same file name in
+each layer, for example `routes/invoices.py`, `schemas/invoices.py` and
+`services/invoices.py`.
 
-- `api/src/invoice_agent/routes/`: HTTP endpoints (Demo Company, Invoices).
-- `api/src/invoice_agent/schemas/`: Pydantic shapes of data in and out.
-- `api/src/invoice_agent/services/`: Demo Company sessions, Process an Invoice
-  graph, and SQL.
-- `api/src/invoice_agent/clients/`: Invoice readers for AI models and the fake
-  response fixture.
+- `api/src/invoice_agent/routes/`: HTTP endpoints, cookies and status codes.
+- `api/src/invoice_agent/schemas/`: shapes of data in and out.
+- `api/src/invoice_agent/services/`: business rules and SQL: Demo Company
+  sessions, the Process an Invoice graph, Invoice lookups.
+- `api/src/invoice_agent/clients/`: Invoice readers for AI models, the fake
+  reader and its response fixture.
 - `api/src/invoice_agent/workers/`: local Invoice queue and worker thread.
-- `api/src/invoice_agent/db/`: Postgres schema with pgvector, and Demo Company
-  sample data.
+- `api/src/invoice_agent/db/`: Postgres schema with pgvector, its startup
+  script, and Demo Company sample data.
 - `api/tests/`: API tests, one file per behaviour.
 - `web/src/features/invoices/`: API client, Split view, and its browser test.
 - `web/src/components/ui/`: generated shadcn/ui components.
