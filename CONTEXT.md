@@ -21,24 +21,36 @@ The company's record that ordered goods actually arrived, and how many.
 _Avoid_: Delivery note, GRN
 
 **Three-Way Match**:
-The check that an Invoice agrees with its Purchase Order and its Goods Receipt on items, quantities and prices.
+The check that an Invoice agrees with its Purchase Order and its Goods Receipt on items, quantities and prices. A line passes when the invoiced quantity equals the received quantity, the received quantity does not exceed the ordered quantity, and the price is within the Price Tolerance.
 _Avoid_: Reconciliation, matching (alone)
 
 **Price Tolerance**:
-How far an Invoice line's unit price may differ from its Purchase Order line and still pass: 2%. Quantities have no tolerance.
+How much higher an Invoice line's unit price may be than its Purchase Order line and still pass: 2%. A lower price always passes.
 _Avoid_: Variance, margin
 
 **Duplicate Invoice**:
-An Invoice the company has already received from the same Supplier for the same charge.
+An Invoice with the same Supplier and Invoice number as one already received.
 _Avoid_: Resubmission
 
+**Possible Duplicate**:
+An Invoice with a different number but the same Supplier and total as another received within 30 days. Always goes to the Review Queue.
+_Avoid_: Suspected duplicate, near-duplicate
+
 **Auto-Approval**:
-The agent approving an Invoice without a Reviewer. Allowed only for a known Supplier, a passing Three-Way Match, no Duplicate Invoice, and a total under the Auto-Approval Limit.
+The agent approving an Invoice without a Reviewer. Allowed only for a known Supplier, a passing Three-Way Match, no Duplicate Invoice or Possible Duplicate, and a total under the Auto-Approval Limit.
 _Avoid_: Straight-through processing
 
 **Auto-Approval Limit**:
-The highest Invoice total the agent may approve on its own.
+The highest Invoice total the agent may approve on its own. A change applies only to Invoices not yet decided.
 _Avoid_: Threshold, cap
+
+**Invoice Status**:
+Where an Invoice is in its life: Processing, In Review, Auto-Approved, Approved or Rejected. The last three are final.
+_Avoid_: State, stage
+
+**Rejection Reason**:
+The Reviewer's required explanation for rejecting an Invoice.
+_Avoid_: Comment, note
 
 **ERP**:
 The company's system of record for Suppliers, Purchase Orders and payments. The agent reaches it only through tools.
