@@ -104,7 +104,7 @@
   background: #252e28;
 }
 
-.invoiceButton[aria-pressed="true"] {
+.invoiceButton[aria-pressed='true'] {
   background: #2b352e;
   box-shadow: inset 3px 0 #a0d2b4;
 }
@@ -374,14 +374,27 @@
 }
 
 @keyframes reveal {
-  from { opacity: 0; transform: translateY(3px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (width <= 1000px) {
-  .shell { grid-template-columns: 300px minmax(0, 1fr); }
-  .detailHeader { grid-template-columns: minmax(0, 1fr); gap: 24px; }
-  .total { text-align: left; }
+  .shell {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+  .detailHeader {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .total {
+    text-align: left;
+  }
 }
 
 @media (width <= 640px) {
@@ -389,19 +402,51 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(260px, 42dvh) minmax(0, 1fr);
   }
-  .sidebar { border-right: 0; border-bottom: 1px solid #303733; }
-  .brand { min-height: 80px; padding: 16px 20px; }
-  .listHeading { height: 42px; padding: 0 20px; }
-  .companyFooter { min-height: 42px; padding: 10px 20px; }
-  .toolbar { height: 52px; padding: 0 20px; }
-  .detailHeader { gap: 24px; padding: 24px 20px; }
-  .metadata { padding: 24px 20px; }
-  .recordId { padding: 20px; }
-  .loadingDetail, .empty, .error { padding: 24px 20px; }
-  .total strong { font-size: 28px; }
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid #303733;
+  }
+  .brand {
+    min-height: 80px;
+    padding: 16px 20px;
+  }
+  .listHeading {
+    height: 42px;
+    padding: 0 20px;
+  }
+  .companyFooter {
+    min-height: 42px;
+    padding: 10px 20px;
+  }
+  .toolbar {
+    height: 52px;
+    padding: 0 20px;
+  }
+  .detailHeader {
+    gap: 24px;
+    padding: 24px 20px;
+  }
+  .metadata {
+    padding: 24px 20px;
+  }
+  .recordId {
+    padding: 20px;
+  }
+  .loadingDetail,
+  .empty,
+  .error {
+    padding: 24px 20px;
+  }
+  .total strong {
+    font-size: 28px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .detailHeader { animation: none; }
-  .invoiceButton { transition: none; }
+  .detailHeader {
+    animation: none;
+  }
+  .invoiceButton {
+    transition: none;
+  }
 }

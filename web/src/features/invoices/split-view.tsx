@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   ChevronRight,
   Clock3,
@@ -8,45 +8,45 @@ import {
   ReceiptText,
   RotateCw,
   TriangleAlert,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from '@/components/ui/tooltip';
 import {
   ApiError,
   getInvoice,
   loadWorkspace,
   type InvoiceHeader,
   type Workspace,
-} from "./api";
-import styles from "./split-view.module.css";
+} from './api';
+import styles from './split-view.module.css';
 
 type WorkspaceState =
-  | { status: "loading" }
-  | { status: "ready"; data: Workspace }
-  | { status: "error"; message: string };
+  | { status: 'loading' }
+  | { status: 'ready'; data: Workspace }
+  | { status: 'error'; message: string };
 
 type DetailState = { id: string; revision: number } & (
-  | { status: "ready"; invoice: InvoiceHeader }
-  | { status: "error"; message: string }
+  | { status: 'ready'; invoice: InvoiceHeader }
+  | { status: 'error'; message: string }
 );
 
-const statusClass: Record<InvoiceHeader["status"], string> = {
+const statusClass: Record<InvoiceHeader['status'], string> = {
   Processing: styles.processing,
-  "In Review": styles.review,
-  "Auto-Approved": styles.autoApproved,
+  'In Review': styles.review,
+  'Auto-Approved': styles.autoApproved,
   Approved: styles.approved,
   Rejected: styles.rejected,
 };
 
 function money(invoice: InvoiceHeader): string {
-  return new Intl.NumberFormat("en-IE", {
-    style: "currency",
+  return new Intl.NumberFormat('en-IE', {
+    style: 'currency',
     currency: invoice.currency,
   }).format(Number(invoice.total));
 }
@@ -54,11 +54,13 @@ function money(invoice: InvoiceHeader): string {
 function errorMessage(error: unknown): string {
   return error instanceof ApiError
     ? error.message
-    : "Unable to reach the Invoice service.";
+    : 'Unable to reach the Invoice service.';
 }
 
 export function SplitView() {
-  const [workspace, setWorkspace] = useState<WorkspaceState>({ status: "loading" });
+  const [workspace, setWorkspace] = useState<WorkspaceState>({
+    status: 'loading',
+  });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<DetailState | null>(null);
   const [revision, setRevision] = useState(0);
@@ -68,7 +70,7 @@ export function SplitView() {
     loadWorkspace()
       .then((data) => {
         if (!active) return;
-        setWorkspace({ status: "ready", data });
+        setWorkspace({ status: 'ready', data });
         setSelectedId((previous) =>
           data.invoices.some((invoice) => invoice.id === previous)
             ? previous
@@ -76,7 +78,8 @@ export function SplitView() {
         );
       })
       .catch((error: unknown) => {
-        if (active) setWorkspace({ status: "error", message: errorMessage(error) });
+        if (active)
+          setWorkspace({ status: 'error', message: errorMessage(error) });
       });
     return () => {
       active = false;
@@ -89,13 +92,15 @@ export function SplitView() {
     getInvoice(selectedId, controller.signal)
       .then((invoice) => {
         if (!controller.signal.aborted) {
-          setDetail({ status: "ready", id: selectedId, revision, invoice });
+          setDetail({ status: 'ready', id: selectedId, revision, invoice });
         }
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
           setDetail({
-            status: "error", id: selectedId, revision,
+            status: 'error',
+            id: selectedId,
+            revision,
             message: errorMessage(error),
           });
         }
@@ -103,21 +108,21 @@ export function SplitView() {
     return () => controller.abort();
   }, [selectedId, revision]);
 
-  const invoices = workspace.status === "ready" ? workspace.data.invoices : [];
-  const company = workspace.status === "ready" ? workspace.data.company : null;
+  const invoices = workspace.status === 'ready' ? workspace.data.invoices : [];
+  const company = workspace.status === 'ready' ? workspace.data.company : null;
   const selected = invoices.find((invoice) => invoice.id === selectedId);
   const currentDetail =
     detail?.id === selectedId && detail.revision === revision ? detail : null;
 
   function refresh() {
-    setWorkspace({ status: "loading" });
+    setWorkspace({ status: 'loading' });
     setRevision((previous) => previous + 1);
   }
 
   let content: ReactNode;
-  if (workspace.status === "error") {
+  if (workspace.status === 'error') {
     content = <ErrorState message={workspace.message} onRetry={refresh} />;
-  } else if (workspace.status === "loading") {
+  } else if (workspace.status === 'loading') {
     content = <LoadingInvoice />;
   } else if (selectedId === null) {
     content = (
@@ -126,9 +131,9 @@ export function SplitView() {
         <h1>No Invoices</h1>
       </div>
     );
-  } else if (currentDetail?.status === "error") {
+  } else if (currentDetail?.status === 'error') {
     content = <ErrorState message={currentDetail.message} onRetry={refresh} />;
-  } else if (currentDetail?.status === "ready") {
+  } else if (currentDetail?.status === 'ready') {
     content = <InvoiceDetails invoice={currentDetail.invoice} />;
   } else {
     content = <LoadingInvoice />;
@@ -153,12 +158,12 @@ export function SplitView() {
         <div className={styles.listHeading}>
           <h2>Invoices</h2>
           <span className={styles.count}>
-            {workspace.status === "ready" ? invoices.length : "-"}
+            {workspace.status === 'ready' ? invoices.length : '-'}
           </span>
         </div>
 
         <nav className={styles.invoiceList} aria-label="Invoice list">
-          {workspace.status === "loading" ? (
+          {workspace.status === 'loading' ? (
             <ul aria-label="Loading Invoices" aria-busy="true">
               {Array.from({ length: 5 }, (_, index) => (
                 <li className={styles.loadingRow} key={index}>
@@ -189,7 +194,10 @@ export function SplitView() {
                       </span>
                       <span className={styles.listTotal}>{money(invoice)}</span>
                     </span>
-                    <span className={styles.supplierName} title={invoice.supplier}>
+                    <span
+                      className={styles.supplierName}
+                      title={invoice.supplier}
+                    >
                       {invoice.supplier}
                     </span>
                     <span className="sr-only">{invoice.status}</span>
@@ -204,10 +212,13 @@ export function SplitView() {
           <Clock3 aria-hidden="true" size={14} />
           {company ? (
             <span>
-              Expires{" "}
+              Expires{' '}
               <time dateTime={company.expires_at}>
-                {new Intl.DateTimeFormat("en-GB", {
-                  day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                {new Intl.DateTimeFormat('en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
                 }).format(new Date(company.expires_at))}
               </time>
             </span>
@@ -235,8 +246,11 @@ export function SplitView() {
             <TooltipTrigger
               render={
                 <Button
-                  variant="ghost" size="icon" aria-label="Refresh Invoices"
-                  onClick={refresh} disabled={workspace.status === "loading"}
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Refresh Invoices"
+                  onClick={refresh}
+                  disabled={workspace.status === 'loading'}
                 />
               }
             >
@@ -256,7 +270,9 @@ function InvoiceDetails({ invoice }: { invoice: InvoiceHeader }) {
     <article>
       <header className={styles.detailHeader}>
         <div>
-          <Badge className={`${styles.statusBadge} ${statusClass[invoice.status]}`}>
+          <Badge
+            className={`${styles.statusBadge} ${statusClass[invoice.status]}`}
+          >
             <span aria-hidden="true" className={styles.statusDot} />
             {invoice.status}
           </Badge>
@@ -274,8 +290,9 @@ function InvoiceDetails({ invoice }: { invoice: InvoiceHeader }) {
           <dt>Invoice date</dt>
           <dd>
             <time dateTime={invoice.issued_on}>
-              {new Intl.DateTimeFormat("en-GB", {
-                dateStyle: "medium", timeZone: "UTC",
+              {new Intl.DateTimeFormat('en-GB', {
+                dateStyle: 'medium',
+                timeZone: 'UTC',
               }).format(new Date(invoice.issued_on))}
             </time>
           </dd>
@@ -295,7 +312,11 @@ function InvoiceDetails({ invoice }: { invoice: InvoiceHeader }) {
 
 function LoadingInvoice() {
   return (
-    <div className={styles.loadingDetail} role="status" aria-label="Loading Invoice">
+    <div
+      className={styles.loadingDetail}
+      role="status"
+      aria-label="Loading Invoice"
+    >
       <Skeleton className="h-5 w-28" />
       <Skeleton className="mt-5 h-9 w-48" />
       <Skeleton className="mt-3 h-4 w-60 max-w-full" />
@@ -309,9 +330,11 @@ function LoadingInvoice() {
 }
 
 function ErrorState({
-  message, onRetry,
+  message,
+  onRetry,
 }: {
-  message: string; onRetry: () => void;
+  message: string;
+  onRetry: () => void;
 }) {
   return (
     <div className={styles.error} role="alert">
