@@ -1,0 +1,84 @@
+name: Checks
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+      - name: Start Postgres with pgvector
+        run: docker compose up -d --wait db
+      - name: Install Python dependencies
+        working-directory: api
+        run: uv sync --locked --python 3.12
+      - name: Check Python
+        working-directory: api
+        run: |
+          uv run --locked ruff check .
+          uv run --locked ruff format --check .
+          uv run --locked mypy src conftest.py
+      - name: Test the HTTP API against Postgres
+        working-directory: api
+        env:
+          TEST_DATABASE_URL: postgresql://invoice:invoice@127.0.0.1:55432/invoice
+        run: uv run --locked pytest
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+      - name: Check and build the web app
+        working-directory: web
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run build
+      - name: Start the API and production web app
+        env:
+          DATABASE_URL: postgresql://invoice:invoice@127.0.0.1:55432/invoice
+          COOKIE_SECURE: "false"
+        run: |
+          uv run --directory api --locked uvicorn invoice_agent.app:create_app --factory --host 127.0.0.1 --port 8000 > /tmp/invoice-api.log 2>&1 &
+          npm --prefix web run start -- --hostname 127.0.0.1 > /tmp/invoice-web.log 2>&1 &
+      - name: Install Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Wait for the API and web app
+        run: |
+          curl --fail --retry 30 --retry-connrefused --retry-delay 1 http://127.0.0.1:8000/health
+          curl --fail --retry 30 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/
+      - name: Test the Split view on desktop and mobile
+        working-directory: web
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+        run: npm test
+      - name: Upload browser failure details
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: browser-failures
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 7
+      - name: Show service logs on failure
+        if: failure()
+        run: |
+          docker compose logs db
+          cat /tmp/invoice-api.log /tmp/invoice-web.log 2>/dev/null || true
