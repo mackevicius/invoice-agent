@@ -18,14 +18,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import {
-  ApiError,
-  DemoCompanyExpiredError,
-  getInvoice,
-  listInvoices,
-  startDemoCompany,
-  type InvoiceHeader,
-} from './api';
+import { startDemoCompany } from '@/features/demo-company/api';
+import { ApiError, DemoCompanyExpiredError } from '@/lib/api';
+import { getInvoice, listInvoices, type InvoiceHeader } from './api';
 import styles from './split-view.module.css';
 
 const statusClass: Record<InvoiceHeader['status'], string> = {
