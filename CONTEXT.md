@@ -77,5 +77,5 @@ _Avoid_: Owner, manager
 ## Demo
 
 **Demo Company**:
-A private, temporary copy of the ERP data given to one visitor for 24 hours.
+A private, temporary copy of the ERP data given to one visitor for 24 hours from when it starts. When it expires, it and everything uploaded to it are deleted, and the visitor must start a new one.
 _Avoid_: Sandbox, tenant, workspace

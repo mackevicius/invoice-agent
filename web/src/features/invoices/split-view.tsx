@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronRight,
   Clock3,
@@ -19,22 +20,13 @@ import {
 } from '@/components/ui/tooltip';
 import {
   ApiError,
+  DemoCompanyExpiredError,
   getInvoice,
-  loadWorkspace,
+  listInvoices,
+  startDemoCompany,
   type InvoiceHeader,
-  type Workspace,
 } from './api';
 import styles from './split-view.module.css';
-
-type WorkspaceState =
-  | { status: 'loading' }
-  | { status: 'ready'; data: Workspace }
-  | { status: 'error'; message: string };
-
-type DetailState = { id: string; revision: number } & (
-  | { status: 'ready'; invoice: InvoiceHeader }
-  | { status: 'error'; message: string }
-);
 
 const statusClass: Record<InvoiceHeader['status'], string> = {
   Processing: styles.processing,
@@ -58,71 +50,66 @@ function errorMessage(error: unknown): string {
 }
 
 export function SplitView() {
-  const [workspace, setWorkspace] = useState<WorkspaceState>({
-    status: 'loading',
+  const queryClient = useQueryClient();
+  const [chosenId, setChosenId] = useState<string | null>(null);
+
+  const demoCompany = useQuery({
+    queryKey: ['demo-company'],
+    queryFn: startDemoCompany,
+    staleTime: Infinity,
   });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<DetailState | null>(null);
-  const [revision, setRevision] = useState(0);
+  const companyId = demoCompany.data?.id;
+  const invoiceList = useQuery({
+    queryKey: ['invoices', companyId],
+    queryFn: ({ signal }) => listInvoices(signal),
+    enabled: companyId !== undefined,
+  });
 
-  useEffect(() => {
-    let active = true;
-    loadWorkspace()
-      .then((data) => {
-        if (!active) return;
-        setWorkspace({ status: 'ready', data });
-        setSelectedId((previous) =>
-          data.invoices.some((invoice) => invoice.id === previous)
-            ? previous
-            : (data.invoices[0]?.id ?? null),
-        );
-      })
-      .catch((error: unknown) => {
-        if (active)
-          setWorkspace({ status: 'error', message: errorMessage(error) });
-      });
-    return () => {
-      active = false;
-    };
-  }, [revision]);
+  const invoices = invoiceList.isSuccess ? invoiceList.data : [];
+  const company = invoiceList.isSuccess ? demoCompany.data : undefined;
+  const selected =
+    invoices.find((invoice) => invoice.id === chosenId) ?? invoices[0];
+  const selectedId = selected?.id ?? null;
 
-  useEffect(() => {
-    if (selectedId === null) return;
-    const controller = new AbortController();
-    getInvoice(selectedId, controller.signal)
-      .then((invoice) => {
-        if (!controller.signal.aborted) {
-          setDetail({ status: 'ready', id: selectedId, revision, invoice });
-        }
-      })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          setDetail({
-            status: 'error',
-            id: selectedId,
-            revision,
-            message: errorMessage(error),
-          });
-        }
-      });
-    return () => controller.abort();
-  }, [selectedId, revision]);
+  const invoice = useQuery({
+    queryKey: ['invoices', companyId, selectedId],
+    queryFn:
+      selectedId === null
+        ? skipToken
+        : ({ signal }) => getInvoice(selectedId, signal),
+  });
 
-  const invoices = workspace.status === 'ready' ? workspace.data.invoices : [];
-  const company = workspace.status === 'ready' ? workspace.data.company : null;
-  const selected = invoices.find((invoice) => invoice.id === selectedId);
-  const currentDetail =
-    detail?.id === selectedId && detail.revision === revision ? detail : null;
+  const error = demoCompany.error ?? invoiceList.error ?? invoice.error;
+  const loading = !demoCompany.isError && invoiceList.isPending;
 
   function refresh() {
-    setWorkspace({ status: 'loading' });
-    setRevision((previous) => previous + 1);
+    void queryClient.resetQueries({
+      queryKey: demoCompany.isError ? ['demo-company'] : ['invoices'],
+    });
+  }
+
+  function startNewDemoCompany() {
+    void queryClient.resetQueries({ queryKey: ['demo-company'] });
   }
 
   let content: ReactNode;
-  if (workspace.status === 'error') {
-    content = <ErrorState message={workspace.message} onRetry={refresh} />;
-  } else if (workspace.status === 'loading') {
+  if (error instanceof DemoCompanyExpiredError) {
+    content = (
+      <ErrorState title="Demo Company expired" message={error.message}>
+        <Button variant="outline" onClick={startNewDemoCompany}>
+          Start a new Demo Company
+        </Button>
+      </ErrorState>
+    );
+  } else if (error) {
+    content = (
+      <ErrorState title="Invoices unavailable" message={errorMessage(error)}>
+        <Button variant="outline" onClick={refresh}>
+          <RotateCw aria-hidden="true" /> Retry
+        </Button>
+      </ErrorState>
+    );
+  } else if (loading) {
     content = <LoadingInvoice />;
   } else if (selectedId === null) {
     content = (
@@ -131,10 +118,8 @@ export function SplitView() {
         <h1>No Invoices</h1>
       </div>
     );
-  } else if (currentDetail?.status === 'error') {
-    content = <ErrorState message={currentDetail.message} onRetry={refresh} />;
-  } else if (currentDetail?.status === 'ready') {
-    content = <InvoiceDetails invoice={currentDetail.invoice} />;
+  } else if (invoice.isSuccess) {
+    content = <InvoiceDetails invoice={invoice.data} />;
   } else {
     content = <LoadingInvoice />;
   }
@@ -158,12 +143,12 @@ export function SplitView() {
         <div className={styles.listHeading}>
           <h2>Invoices</h2>
           <span className={styles.count}>
-            {workspace.status === 'ready' ? invoices.length : '-'}
+            {invoiceList.isSuccess ? invoices.length : '-'}
           </span>
         </div>
 
         <nav className={styles.invoiceList} aria-label="Invoice list">
-          {workspace.status === 'loading' ? (
+          {loading ? (
             <ul aria-label="Loading Invoices" aria-busy="true">
               {Array.from({ length: 5 }, (_, index) => (
                 <li className={styles.loadingRow} key={index}>
@@ -180,7 +165,7 @@ export function SplitView() {
                     type="button"
                     className={styles.invoiceButton}
                     aria-pressed={selectedId === invoice.id}
-                    onClick={() => setSelectedId(invoice.id)}
+                    onClick={() => setChosenId(invoice.id)}
                   >
                     <span className={styles.invoiceRow}>
                       <span className={styles.invoiceIdentity}>
@@ -250,7 +235,7 @@ export function SplitView() {
                   size="icon"
                   aria-label="Refresh Invoices"
                   onClick={refresh}
-                  disabled={workspace.status === 'loading'}
+                  disabled={loading}
                 />
               }
             >
@@ -330,20 +315,20 @@ function LoadingInvoice() {
 }
 
 function ErrorState({
+  title,
   message,
-  onRetry,
+  children,
 }: {
+  title: string;
   message: string;
-  onRetry: () => void;
+  children: ReactNode;
 }) {
   return (
     <div className={styles.error} role="alert">
       <TriangleAlert aria-hidden="true" size={24} />
-      <h1>Invoices unavailable</h1>
+      <h1>{title}</h1>
       <p>{message}</p>
-      <Button variant="outline" onClick={onRetry}>
-        <RotateCw aria-hidden="true" /> Retry
-      </Button>
+      {children}
     </div>
   );
 }

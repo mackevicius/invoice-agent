@@ -23,9 +23,10 @@ const invoiceHeaderSchema = z.object({
 
 export type InvoiceHeader = z.infer<typeof invoiceHeaderSchema>;
 export type DemoCompany = z.infer<typeof demoCompanySchema>;
-export type Workspace = { company: DemoCompany; invoices: InvoiceHeader[] };
 
 export class ApiError extends Error {}
+export class DemoCompanyExpiredError extends ApiError {}
+export class ServiceUnavailableError extends ApiError {}
 
 async function request<Result>(
   path: string,
@@ -40,12 +41,15 @@ async function request<Result>(
 
   if (!response.ok) {
     if (response.status === 401) {
-      throw new ApiError('This Demo Company has expired.');
+      throw new DemoCompanyExpiredError('This Demo Company has expired.');
     }
     if (response.status === 404) {
       throw new ApiError('This Invoice is no longer available.');
     }
-    throw new ApiError('The Invoice service is temporarily unavailable.');
+    const message = 'The Invoice service is temporarily unavailable.';
+    throw response.status >= 500
+      ? new ServiceUnavailableError(message)
+      : new ApiError(message);
   }
 
   const payload: unknown = await response.json().catch(() => null);
@@ -56,22 +60,13 @@ async function request<Result>(
   return parsed.data;
 }
 
-let workspaceRequest: Promise<Workspace> | null = null;
+// The server returns the visitor's live Demo Company, or starts a new one.
+export function startDemoCompany(): Promise<DemoCompany> {
+  return request('/api/demo-company', demoCompanySchema, { method: 'POST' });
+}
 
-export function loadWorkspace(): Promise<Workspace> {
-  workspaceRequest ??= (async () => {
-    const company = await request('/api/demo-company', demoCompanySchema, {
-      method: 'POST',
-    });
-    const invoices = await request(
-      '/api/invoices',
-      z.array(invoiceHeaderSchema),
-    );
-    return { company, invoices };
-  })().finally(() => {
-    workspaceRequest = null;
-  });
-  return workspaceRequest;
+export function listInvoices(signal: AbortSignal): Promise<InvoiceHeader[]> {
+  return request('/api/invoices', z.array(invoiceHeaderSchema), { signal });
 }
 
 export function getInvoice(
