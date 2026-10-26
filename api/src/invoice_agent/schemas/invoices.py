@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, JsonValue
 
-from invoice_agent.invoice_reading.reading import InvoiceFields
+from invoice_agent.schemas.invoice_fields import InvoiceFields
 
 
 class InvoiceHeader(BaseModel):

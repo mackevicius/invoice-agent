@@ -23,7 +23,7 @@ services:
       COOKIE_SECURE: 'false'
       INVOICE_MODEL_PROVIDER: ${INVOICE_MODEL_PROVIDER:-openai}
       INVOICE_MODEL: ${INVOICE_MODEL:-}
-      INVOICE_FAKE_RESPONSE: ${INVOICE_FAKE_RESPONSE:-/app/src/invoice_agent/invoice_reading/fixtures/readable.json}
+      INVOICE_FAKE_RESPONSE: ${INVOICE_FAKE_RESPONSE:-/app/src/invoice_agent/clients/fixtures/readable.json}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:

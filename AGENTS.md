@@ -14,6 +14,7 @@ Single-context: root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md` b
 
 ## Code layout
 
-- Organise by **feature** (Invoice reading, matching, Review Queue, ERP tools). Each feature folder holds its code and its tests.
+- **API (`api/`)**: organise by **layer**: `routes/` (HTTP), `schemas/` (Pydantic shapes), `services/` (business logic and SQL), `clients/` (outside systems: AI models, ERP), `workers/` (background jobs), `db/` (schema and seed). Follow the import rule in ADR 0004. Tests live in `api/tests/`.
+- **Web (`web/`)**: organise by **feature** (Invoice reading, matching, Review Queue, ERP tools). Each feature folder holds its code and its tests.
 - Build **deep modules**: a small interface over a lot of behaviour. Split a file when it holds two reasons to change; a long file with one job stays whole.
 - Group tests by **behaviour** seen through the seam (e.g. Price Tolerance, Duplicate Invoice, Auto-Approval), one file per behaviour, with shared builders for test data.

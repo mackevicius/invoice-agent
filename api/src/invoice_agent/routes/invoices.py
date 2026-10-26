@@ -5,11 +5,14 @@ import psycopg
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from psycopg.rows import dict_row
 
-from invoice_agent.demo_company.api import DemoCompanies
-from invoice_agent.invoice_reading.processing import InvoiceNotFound, InvoiceProcessing
-from invoice_agent.invoice_reading.queue import InvoiceQueue, ProcessInvoiceJob
-from invoice_agent.invoice_reading.reading import InvoiceFile
-from invoice_agent.invoices.models import InvoiceDetail, InvoiceHeader
+from invoice_agent.clients.invoice_reader import InvoiceFile
+from invoice_agent.schemas.invoices import InvoiceDetail, InvoiceHeader
+from invoice_agent.services.demo_companies import DemoCompanies
+from invoice_agent.services.invoice_processing import (
+    InvoiceNotFound,
+    InvoiceProcessing,
+)
+from invoice_agent.workers.invoice_queue import InvoiceQueue, ProcessInvoiceJob
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 SUPPORTED_CONTENT_TYPES = {

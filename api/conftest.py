@@ -27,7 +27,7 @@ def database_url() -> Iterator[str]:
 @pytest.fixture
 def client(database_url: str) -> Iterator[TestClient]:
     from invoice_agent.app import create_app
-    from invoice_agent.invoice_reading.reading import ScriptedInvoiceReader
+    from invoice_agent.clients.invoice_reader import ScriptedInvoiceReader
 
     with TestClient(
         create_app(

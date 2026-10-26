@@ -1,16 +1,7 @@
-from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
-
-
-@dataclass(frozen=True)
-class InvoiceFile:
-    filename: str
-    content_type: str
-    content: bytes
 
 
 class InvoiceLine(BaseModel):
@@ -34,15 +25,7 @@ class InvoiceFields(BaseModel):
     total: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
 
 
-class InvoiceReader(Protocol):
-    def read(self, document: InvoiceFile) -> InvoiceFields | None: ...
+class InvoiceReadResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-
-@dataclass(frozen=True)
-class ScriptedInvoiceReader:
-    result: InvoiceFields | None | Exception
-
-    def read(self, document: InvoiceFile) -> InvoiceFields | None:
-        if isinstance(self.result, Exception):
-            raise self.result
-        return self.result
+    invoice: InvoiceFields | None

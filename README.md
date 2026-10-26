@@ -67,7 +67,7 @@ INVOICE_MODEL_PROVIDER=fake docker compose up --build
 ```
 
 The fake returns the fixed fields in
-`api/src/invoice_agent/invoice_reading/fixtures/readable.json` for every file;
+`api/src/invoice_agent/clients/fixtures/readable.json` for every file;
 it does not read the document. `INVOICE_FAKE_RESPONSE` can point to another JSON
 response with the same `{"invoice": ...}` shape, or `{"invoice": null}` for an
 unreadable result. The path must be accessible inside the API container.
@@ -86,7 +86,7 @@ with a scripted model, not internal database functions or paid providers.
 
 ```sh
 docker compose run --rm api uv run --locked pytest
-docker compose run --rm api uv run --locked mypy src conftest.py
+docker compose run --rm api uv run --locked mypy src tests conftest.py
 docker compose run --rm api uv run --locked ruff check .
 docker compose run --rm api uv run --locked ruff format --check .
 docker compose exec web npm run typecheck
@@ -112,11 +112,18 @@ no cloud credentials or paid services are required.
 
 ## Layout
 
-- `api/src/invoice_agent/demo_company/`: session startup, expiry, seeding, and tests.
-- `api/src/invoice_agent/invoices/`: company-scoped Invoice HTTP endpoints and tests.
-- `api/src/invoice_agent/invoice_reading/`: typed reading, model providers, graph,
-  local queue, and Process an Invoice tests.
-- `api/src/invoice_agent/schema.sql`: Postgres schema and pgvector extension.
+The API is organised by layer (ADR 0004):
+
+- `api/src/invoice_agent/routes/`: HTTP endpoints (Demo Company, Invoices).
+- `api/src/invoice_agent/schemas/`: Pydantic shapes of data in and out.
+- `api/src/invoice_agent/services/`: Demo Company sessions, Process an Invoice
+  graph, and SQL.
+- `api/src/invoice_agent/clients/`: Invoice readers for AI models and the fake
+  response fixture.
+- `api/src/invoice_agent/workers/`: local Invoice queue and worker thread.
+- `api/src/invoice_agent/db/`: Postgres schema with pgvector, and Demo Company
+  sample data.
+- `api/tests/`: API tests, one file per behaviour.
 - `web/src/features/invoices/`: API client, Split view, and its browser test.
 - `web/src/components/ui/`: generated shadcn/ui components.
 

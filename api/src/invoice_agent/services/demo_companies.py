@@ -8,14 +8,9 @@ from uuid import UUID, uuid4
 import psycopg
 from fastapi import Cookie, HTTPException, Response
 from psycopg.rows import dict_row
-from pydantic import BaseModel
 
-from invoice_agent.demo_company.seed import seed_demo_company
-
-
-class DemoCompany(BaseModel):
-    id: UUID
-    expires_at: datetime
+from invoice_agent.db.seed import seed_demo_company
+from invoice_agent.schemas.demo_company import DemoCompany
 
 
 @dataclass(frozen=True)

@@ -6,13 +6,14 @@ import psycopg
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import RequestResponseEndpoint
 
-from invoice_agent.database import initialize_database
-from invoice_agent.demo_company.api import DemoCompanies
-from invoice_agent.invoice_reading.processing import InvoiceProcessing
-from invoice_agent.invoice_reading.providers import configured_reader
-from invoice_agent.invoice_reading.queue import InProcessInvoiceQueue, InvoiceQueue
-from invoice_agent.invoice_reading.reading import InvoiceReader
-from invoice_agent.invoices.api import create_invoice_router
+from invoice_agent.clients.invoice_reader import InvoiceReader
+from invoice_agent.clients.reader_settings import configured_reader
+from invoice_agent.db.schema import initialize_database
+from invoice_agent.routes.demo_company import create_demo_company_router
+from invoice_agent.routes.invoices import create_invoice_router
+from invoice_agent.services.demo_companies import DemoCompanies
+from invoice_agent.services.invoice_processing import InvoiceProcessing
+from invoice_agent.workers.invoice_queue import InProcessInvoiceQueue, InvoiceQueue
 
 
 def create_app(
@@ -60,8 +61,6 @@ def create_app(
         return {"status": "ok"}
 
     companies = DemoCompanies(database_url=url, cookie_secure=secure)
-    app.add_api_route(
-        "/api/demo-company", companies.start, methods=["POST"], tags=["Demo Company"]
-    )
+    app.include_router(create_demo_company_router(companies))
     app.include_router(create_invoice_router(url, companies, processing, queue))
     return app

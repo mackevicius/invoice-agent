@@ -1,0 +1,3 @@
+# API organised by layer
+
+The Python API is organised by layer (`routes/`, `schemas/`, `services/`, `clients/`, `workers/`, `db/`), not by feature like the web app. One folder per kind of code makes the architecture readable at a glance for a team new to Python. The cost is that a feature ticket usually touches several folders. Imports may only point down the layers: `routes` → `services`/`workers` → `clients`/`db` → `schemas`; `app.py` is the only module that chooses implementations. We would revisit this if the API grows past roughly 50 modules and features start to blur together inside each layer.

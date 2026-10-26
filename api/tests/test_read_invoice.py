@@ -5,13 +5,9 @@ from uuid import UUID
 
 from fastapi.testclient import TestClient
 
-from invoice_agent.invoice_reading.processing import InvoiceProcessing
-from invoice_agent.invoice_reading.reading import (
-    InvoiceFields,
-    InvoiceFile,
-    InvoiceLine,
-    ScriptedInvoiceReader,
-)
+from invoice_agent.clients.invoice_reader import InvoiceFile, ScriptedInvoiceReader
+from invoice_agent.schemas.invoice_fields import InvoiceFields, InvoiceLine
+from invoice_agent.services.invoice_processing import InvoiceProcessing
 
 
 def test_read_fields_and_recorded_step(client: TestClient, database_url: str) -> None:

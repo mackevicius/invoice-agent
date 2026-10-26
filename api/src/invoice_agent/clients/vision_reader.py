@@ -1,26 +1,14 @@
-import os
 from base64 import b64encode
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Literal
 
 from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import ValidationError
 
-from invoice_agent.invoice_reading.reading import (
-    InvoiceFields,
-    InvoiceFile,
-    InvoiceReader,
-    ScriptedInvoiceReader,
-)
-
-
-class InvoiceReadResult(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    invoice: InvoiceFields | None
+from invoice_agent.clients.invoice_reader import InvoiceFile
+from invoice_agent.schemas.invoice_fields import InvoiceFields, InvoiceReadResult
 
 
 @dataclass(frozen=True)
@@ -81,27 +69,3 @@ class VisionInvoiceReader:
             return InvoiceReadResult.model_validate(result).invoice
         except (OutputParserException, ValidationError):
             return None
-
-
-def configured_reader() -> InvoiceReader:
-    provider = os.environ.get("INVOICE_MODEL_PROVIDER", "openai").lower()
-    if provider == "fake":
-        response_path = os.environ.get("INVOICE_FAKE_RESPONSE")
-        fields = (
-            InvoiceReadResult.model_validate_json(
-                Path(response_path).read_text(encoding="utf-8")
-            ).invoice
-            if response_path
-            else None
-        )
-        return ScriptedInvoiceReader(fields)
-    if provider == "openai":
-        return VisionInvoiceReader(
-            provider="openai", model=os.environ.get("INVOICE_MODEL") or "gpt-4.1-mini"
-        )
-    if provider == "anthropic":
-        return VisionInvoiceReader(
-            provider="anthropic",
-            model=os.environ.get("INVOICE_MODEL") or "claude-haiku-4-5-20251001",
-        )
-    raise ValueError("INVOICE_MODEL_PROVIDER must be openai, anthropic, or fake.")

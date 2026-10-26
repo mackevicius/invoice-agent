@@ -6,8 +6,8 @@ from threading import Thread
 from typing import Protocol
 from uuid import UUID
 
-from invoice_agent.invoice_reading.processing import InvoiceNotFound
-from invoice_agent.invoices.models import InvoiceDetail
+from invoice_agent.schemas.invoices import InvoiceDetail
+from invoice_agent.services.invoice_processing import InvoiceNotFound
 
 logger = logging.getLogger(__name__)
 

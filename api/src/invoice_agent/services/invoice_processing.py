@@ -8,8 +8,8 @@ from langgraph.graph import END, START, StateGraph
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from invoice_agent.invoice_reading.reading import InvoiceFile, InvoiceReader
-from invoice_agent.invoices.models import InvoiceDetail
+from invoice_agent.clients.invoice_reader import InvoiceFile, InvoiceReader
+from invoice_agent.schemas.invoices import InvoiceDetail
 
 logger = logging.getLogger(__name__)
 

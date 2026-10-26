@@ -30,7 +30,7 @@ build-backend = "hatchling.build"
 packages = ["src/invoice_agent"]
 
 [tool.pytest.ini_options]
-testpaths = ["src"]
+testpaths = ["tests"]
 addopts = "--strict-markers"
 
 [tool.mypy]

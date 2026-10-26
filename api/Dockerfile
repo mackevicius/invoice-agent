@@ -4,6 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_LINK_MODE=copy
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY src ./src
+COPY tests ./tests
 COPY conftest.py ./
 RUN uv sync --locked
 
