@@ -1,5 +1,5 @@
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import psycopg
@@ -33,7 +33,7 @@ def create_app(
     queue = invoice_queue or InProcessInvoiceQueue(processing.process)
 
     @asynccontextmanager
-    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
         initialize_database(url)
         if isinstance(queue, InProcessInvoiceQueue):
             queue.start()
