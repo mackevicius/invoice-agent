@@ -1,19 +1,32 @@
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import timedelta
 
 import psycopg
 from fastapi import FastAPI, Request, Response
+from mcp.shared.memory import create_connected_server_and_client_session
 from starlette.middleware.base import RequestResponseEndpoint
 
+from invoice_agent.clients.erp_tools import ERPTools
 from invoice_agent.clients.invoice_reader import InvoiceReader
 from invoice_agent.clients.reader_settings import configured_reader
 from invoice_agent.db.initialize import initialize_database
 from invoice_agent.routes.demo_company import create_demo_company_router
 from invoice_agent.routes.invoices import create_invoice_router
 from invoice_agent.services.demo_company import DemoCompanies
+from invoice_agent.services.erp_tools import create_erp_server
 from invoice_agent.services.invoices import InvoiceProcessing
 from invoice_agent.workers.invoice_queue import InProcessInvoiceQueue, InvoiceQueue
+
+
+def create_erp_tools(database_url: str) -> ERPTools:
+    return ERPTools(
+        lambda company_id: create_connected_server_and_client_session(
+            create_erp_server(database_url, company_id),
+            read_timeout_seconds=timedelta(seconds=30),
+        )
+    )
 
 
 def create_app(
@@ -29,7 +42,11 @@ def create_app(
         if cookie_secure is not None
         else os.environ.get("COOKIE_SECURE", "true").lower() != "false"
     )
-    processing = InvoiceProcessing(url, reader=reader or configured_reader())
+    processing = InvoiceProcessing(
+        url,
+        reader=reader or configured_reader(),
+        erp_tools=create_erp_tools(url),
+    )
     queue = invoice_queue or InProcessInvoiceQueue(processing.process)
 
     @asynccontextmanager

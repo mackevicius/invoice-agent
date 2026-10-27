@@ -8,6 +8,7 @@ dependencies = [
     "langchain-anthropic>=1,<2",
     "langchain-openai>=1,<2",
     "langgraph>=1,<2",
+    "mcp>=1.26,<2",
     "psycopg[binary]>=3.2,<4",
     "python-multipart>=0.0.20,<1",
     "uvicorn[standard]>=0.34,<1",

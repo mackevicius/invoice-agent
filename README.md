@@ -2,9 +2,10 @@
 
 Checks supplier Invoices against Purchase Orders and Goods Receipts.
 Visitors get a private, seeded Demo Company and can upload an Invoice to watch
-its fields being read in the Split view. No model calls are needed to browse
-the samples. Supplier lookup and Three-Way Match are later steps; uploaded
-Invoices currently finish In Review and are never Auto-Approved.
+its fields being read and its Supplier looked up in the Split view. No model
+calls are needed to browse the samples. Three-Way Match and the other checks
+are later work; uploaded Invoices currently finish In Review and are never
+Auto-Approved.
 
 ## Run Locally
 
@@ -78,11 +79,33 @@ LangGraph worker on its own thread. Files and step records are deleted with
 their Demo Company. This in-process queue is for local development: restarting
 the API loses queued jobs. Deployment will add SQS and S3 (ADR 0001).
 
+## ERP Tools
+
+After reading, the agent calls `find_supplier_by_name` through the official MCP
+SDK. The local MCP server and client communicate over an in-memory transport;
+no extra service or port is needed. The server is bound to one Demo Company,
+and the tool accepts only a Supplier name, not a Demo Company ID. Only the
+server queries the ERP tables (ADR 0002).
+
+Lookup ignores case, punctuation and spacing. A unique match records the
+Supplier's ID and canonical name in the Find Supplier step. No match or an
+ambiguous name sends the Invoice In Review with the reason **Unknown Supplier**.
+An unavailable tool records a failed lookup and a separate review reason.
+In both cases, later steps are marked Skipped.
+
+For a known Supplier, later steps are also Skipped for now, with a reason that
+Purchase Order and Goods Receipt checks are still required. The default fake
+Invoice names Baltic Office Supplies, which is not seeded, so it demonstrates
+the unknown-Supplier path. Use a seeded name such as Paper & Co. in an alternate
+fake response to see a known match.
+
 ## Checks and Tests
 
 API tests use real Postgres with pgvector and a separate, disposable schema per
 test. They exercise the HTTP API and the public Process an Invoice interface
 with a scripted model, not internal database functions or paid providers.
+Supplier tests use the real MCP client and server, including name variations,
+unknown Suppliers, ERP failures and isolation between Demo Companies.
 
 ```sh
 docker compose run --rm api uv run --locked pytest
@@ -119,9 +142,9 @@ each layer, for example `routes/invoices.py`, `schemas/invoices.py` and
 - `api/src/invoice_agent/routes/`: HTTP endpoints, cookies and status codes.
 - `api/src/invoice_agent/schemas/`: shapes of data in and out.
 - `api/src/invoice_agent/services/`: business rules and SQL: Demo Company
-  sessions, the Process an Invoice graph, Invoice lookups.
+  sessions, the Process an Invoice graph, Invoice lookups and the MCP ERP server.
 - `api/src/invoice_agent/clients/`: Invoice readers for AI models, the fake
-  reader and its response fixture.
+  reader and its response fixture, and the MCP ERP client.
 - `api/src/invoice_agent/workers/`: local Invoice queue and worker thread.
 - `api/src/invoice_agent/db/`: Postgres schema with pgvector, its startup
   script, and Demo Company sample data.

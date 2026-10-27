@@ -450,11 +450,21 @@
 
 .pipeline li {
   display: flex;
-  min-width: 160px;
+  flex: 0 0 160px;
+  min-width: 0;
   align-items: center;
   gap: 12px;
   padding: 0 0 16px;
   border-bottom: 2px solid #b9c7bf;
+}
+
+.pipeline li > svg {
+  flex-shrink: 0;
+}
+
+.pipeline li > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .pipeline li[data-status='Completed'] {
@@ -470,6 +480,11 @@
 .pipeline li[data-status='Running'] {
   border-color: #75b9d4;
   color: #225e72;
+}
+
+.pipeline li[data-status='Skipped'] {
+  border-color: #c4ccc7;
+  color: #657269;
 }
 
 .pipeline li strong,

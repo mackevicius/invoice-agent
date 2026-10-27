@@ -28,7 +28,7 @@ class InvoiceHeader(BaseModel):
 
 class InvoiceStep(BaseModel):
     name: str
-    status: Literal["Pending", "Running", "Completed", "Failed"]
+    status: Literal["Pending", "Running", "Completed", "Failed", "Skipped"]
     inputs: dict[str, JsonValue]
     outputs: dict[str, JsonValue] | None
     started_at: datetime | None

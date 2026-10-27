@@ -1,4 +1,10 @@
-import { Check, Circle, LoaderCircle, TriangleAlert } from 'lucide-react';
+import {
+  Check,
+  Circle,
+  CircleMinus,
+  LoaderCircle,
+  TriangleAlert,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { money, type InvoiceDetail } from './api';
 import styles from './split-view.module.css';
@@ -48,7 +54,18 @@ export function InvoiceDetails({ invoice }: { invoice: InvoiceDetail }) {
                     ? TriangleAlert
                     : step.status === 'Running'
                       ? LoaderCircle
-                      : Circle;
+                      : step.status === 'Skipped'
+                        ? CircleMinus
+                        : Circle;
+              const supplier =
+                step.name === 'Find Supplier' ? step.outputs?.supplier : null;
+              const supplierName =
+                supplier &&
+                typeof supplier === 'object' &&
+                !Array.isArray(supplier) &&
+                typeof supplier.name === 'string'
+                  ? supplier.name
+                  : null;
               return (
                 <li key={step.name} data-status={step.status}>
                   <Icon
@@ -61,6 +78,7 @@ export function InvoiceDetails({ invoice }: { invoice: InvoiceDetail }) {
                   <div>
                     <strong>{step.name}</strong>
                     <span>{step.status}</span>
+                    {supplierName && <span>{supplierName}</span>}
                   </div>
                 </li>
               );

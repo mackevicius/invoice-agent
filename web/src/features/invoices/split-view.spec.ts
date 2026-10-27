@@ -64,7 +64,7 @@ test('a visitor selects an Invoice and returns to the same Demo Company', async 
   });
 });
 
-test('a visitor uploads an Invoice and watches its read step', async ({
+test('a visitor uploads an Invoice and watches an unknown Supplier stop the run', async ({
   page,
 }, testInfo) => {
   const errors: string[] = [];
@@ -110,8 +110,21 @@ test('a visitor uploads an Invoice and watches its read step', async ({
     detail.getByText('Baltic Office Supplies', { exact: true }),
   ).toBeVisible();
   const steps = detail.getByRole('list', { name: 'Agent steps' });
-  await expect(steps.getByText('Read Invoice', { exact: true })).toBeVisible();
-  await expect(steps.getByText('Completed', { exact: true })).toBeVisible();
+  const readStep = steps
+    .getByRole('listitem')
+    .filter({ hasText: 'Read Invoice' });
+  await expect(readStep.getByText('Completed', { exact: true })).toBeVisible();
+  const supplierStep = steps
+    .getByRole('listitem')
+    .filter({ hasText: 'Find Supplier' });
+  await expect(
+    supplierStep.getByText('Completed', { exact: true }),
+  ).toBeVisible();
+  await expect(steps.getByRole('listitem')).toHaveCount(8);
+  await expect(steps.getByText('Skipped', { exact: true })).toHaveCount(6);
+  await expect(
+    detail.getByRole('region', { name: 'Review reasons' }),
+  ).toHaveText('Review reasonsUnknown Supplier');
   await expect(
     detail.getByRole('cell', { name: 'Printer paper' }),
   ).toBeVisible();

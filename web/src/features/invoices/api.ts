@@ -43,7 +43,7 @@ const invoiceDetailSchema = invoiceHeaderSchema.extend({
   steps: z.array(
     z.object({
       name: z.string(),
-      status: z.enum(['Pending', 'Running', 'Completed', 'Failed']),
+      status: z.enum(['Pending', 'Running', 'Completed', 'Failed', 'Skipped']),
       inputs: z.record(z.string(), z.json()),
       outputs: z.record(z.string(), z.json()).nullable(),
       started_at: z.iso.datetime({ offset: true }).nullable(),

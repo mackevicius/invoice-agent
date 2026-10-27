@@ -5,13 +5,16 @@ from uuid import UUID
 
 from fastapi.testclient import TestClient
 
+from invoice_agent.clients.erp_tools import ERPTools
 from invoice_agent.clients.invoice_reader import ScriptedInvoiceReader
 from invoice_agent.schemas.invoice_fields import InvoiceFields, InvoiceLine
 from invoice_agent.schemas.invoices import InvoiceFile
 from invoice_agent.services.invoices import InvoiceProcessing
 
 
-def test_read_fields_and_recorded_step(client: TestClient, database_url: str) -> None:
+def test_read_fields_and_recorded_step(
+    client: TestClient, database_url: str, erp_tools: ERPTools
+) -> None:
     company_id = UUID(client.post("/api/demo-company").json()["id"])
     fields = InvoiceFields(
         supplier_name="Baltic Office Supplies",
@@ -29,7 +32,9 @@ def test_read_fields_and_recorded_step(client: TestClient, database_url: str) ->
         tax=Decimal("7.88"),
         total=Decimal("45.38"),
     )
-    processing = InvoiceProcessing(database_url, reader=ScriptedInvoiceReader(fields))
+    processing = InvoiceProcessing(
+        database_url, reader=ScriptedInvoiceReader(fields), erp_tools=erp_tools
+    )
     document = InvoiceFile(
         filename="invoice.png",
         content_type="image/png",
@@ -61,9 +66,13 @@ def test_read_fields_and_recorded_step(client: TestClient, database_url: str) ->
     assert processing.get(company_id, uploaded.id) == result
 
 
-def test_unreadable_file_goes_in_review(client: TestClient, database_url: str) -> None:
+def test_unreadable_file_goes_in_review(
+    client: TestClient, database_url: str, erp_tools: ERPTools
+) -> None:
     company_id = UUID(client.post("/api/demo-company").json()["id"])
-    processing = InvoiceProcessing(database_url, reader=ScriptedInvoiceReader(None))
+    processing = InvoiceProcessing(
+        database_url, reader=ScriptedInvoiceReader(None), erp_tools=erp_tools
+    )
     uploaded = processing.upload(
         company_id,
         InvoiceFile(
@@ -87,10 +96,14 @@ def test_unreadable_file_goes_in_review(client: TestClient, database_url: str) -
     assert processing.get(company_id, uploaded.id) == result
 
 
-def test_model_failure_goes_in_review(client: TestClient, database_url: str) -> None:
+def test_model_failure_goes_in_review(
+    client: TestClient, database_url: str, erp_tools: ERPTools
+) -> None:
     company_id = UUID(client.post("/api/demo-company").json()["id"])
     processing = InvoiceProcessing(
-        database_url, reader=ScriptedInvoiceReader(RuntimeError("Model unavailable"))
+        database_url,
+        reader=ScriptedInvoiceReader(RuntimeError("Model unavailable")),
+        erp_tools=erp_tools,
     )
     uploaded = processing.upload(
         company_id,

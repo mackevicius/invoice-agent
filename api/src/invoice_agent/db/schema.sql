@@ -105,7 +105,9 @@ CREATE TABLE IF NOT EXISTS invoice_steps (
     invoice_id UUID NOT NULL,
     name TEXT NOT NULL,
     position INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL CHECK (status IN ('Pending', 'Running', 'Completed', 'Failed')),
+    status TEXT NOT NULL CHECK (
+        status IN ('Pending', 'Running', 'Completed', 'Failed', 'Skipped')
+    ),
     inputs JSONB NOT NULL,
     outputs JSONB,
     started_at TIMESTAMPTZ,
@@ -114,6 +116,10 @@ CREATE TABLE IF NOT EXISTS invoice_steps (
     FOREIGN KEY (company_id, invoice_id)
         REFERENCES invoices(company_id, id) ON DELETE CASCADE
 );
+
+ALTER TABLE invoice_steps DROP CONSTRAINT IF EXISTS invoice_steps_status_check;
+ALTER TABLE invoice_steps ADD CONSTRAINT invoice_steps_status_check
+    CHECK (status IN ('Pending', 'Running', 'Completed', 'Failed', 'Skipped'));
 
 CREATE TABLE IF NOT EXISTS invoice_lines (
     id UUID PRIMARY KEY,

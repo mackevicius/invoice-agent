@@ -7,11 +7,38 @@ import psycopg
 from langgraph.graph import END, START, StateGraph
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
+from pydantic import JsonValue
 
+from invoice_agent.clients.erp_tools import ERPTools
 from invoice_agent.clients.invoice_reader import InvoiceReader
 from invoice_agent.schemas.invoices import InvoiceDetail, InvoiceFile, InvoiceHeader
 
 logger = logging.getLogger(__name__)
+
+INVOICE_STEPS = (
+    "Read Invoice",
+    "Find Supplier",
+    "Find Purchase Order",
+    "Find Goods Receipt",
+    "Pair Lines",
+    "Three-Way Match",
+    "Check Duplicates",
+    "Decide",
+)
+
+
+def _skip_pending_steps(
+    connection: psycopg.Connection[tuple[object, ...]],
+    company_id: UUID,
+    invoice_id: UUID,
+    reason: str,
+) -> None:
+    connection.execute(
+        """UPDATE invoice_steps SET status = 'Skipped', outputs = %s,
+                  completed_at = %s
+           WHERE company_id = %s AND invoice_id = %s AND status = 'Pending'""",
+        (Jsonb({"reason": reason}), datetime.now(UTC), company_id, invoice_id),
+    )
 
 
 class InvoiceRun(TypedDict):
@@ -24,13 +51,18 @@ class InvoiceNotFound(LookupError):
 
 
 class InvoiceProcessing:
-    def __init__(self, database_url: str, reader: InvoiceReader) -> None:
+    def __init__(
+        self, database_url: str, reader: InvoiceReader, erp_tools: ERPTools
+    ) -> None:
         self.database_url = database_url
         self.reader = reader
+        self.erp_tools = erp_tools
         graph = StateGraph(InvoiceRun)
         graph.add_node("read_invoice", self._read_invoice)
+        graph.add_node("find_supplier", self._find_supplier)
         graph.add_edge(START, "read_invoice")
-        graph.add_edge("read_invoice", END)
+        graph.add_edge("read_invoice", "find_supplier")
+        graph.add_edge("find_supplier", END)
         self.graph = graph.compile()
 
     def upload(self, company_id: UUID, document: InvoiceFile) -> InvoiceDetail:
@@ -56,21 +88,26 @@ class InvoiceProcessing:
             ).fetchone()
             if inserted is None:
                 raise InvoiceNotFound("Demo Company not found.")
-            connection.execute(
-                """INSERT INTO invoice_steps
-                   (company_id, invoice_id, name, status, inputs)
-                   VALUES (%s, %s, 'Read Invoice', 'Pending', %s)""",
-                (
-                    company_id,
-                    invoice_id,
-                    Jsonb(
-                        {
-                            "filename": document.filename,
-                            "content_type": document.content_type,
-                        }
+            for position, name in enumerate(INVOICE_STEPS):
+                connection.execute(
+                    """INSERT INTO invoice_steps
+                       (company_id, invoice_id, name, position, status, inputs)
+                       VALUES (%s, %s, %s, %s, 'Pending', %s)""",
+                    (
+                        company_id,
+                        invoice_id,
+                        name,
+                        position,
+                        Jsonb(
+                            {
+                                "filename": document.filename,
+                                "content_type": document.content_type,
+                            }
+                            if position == 0
+                            else {}
+                        ),
                     ),
-                ),
-            )
+                )
         return self._require(company_id, invoice_id)
 
     def process(self, company_id: UUID, invoice_id: UUID) -> InvoiceDetail:
@@ -169,7 +206,7 @@ class InvoiceProcessing:
             connection.execute(
                 """UPDATE invoices SET supplier_name = %s, invoice_number = %s,
                           total = %s, currency = %s, issued_on = %s,
-                          read_fields = %s, status = 'In Review', reasons = %s
+                          read_fields = %s
                    WHERE company_id = %s AND id = %s""",
                 (
                     fields.supplier_name,
@@ -178,12 +215,6 @@ class InvoiceProcessing:
                     fields.currency,
                     fields.issued_on,
                     Jsonb(fields.model_dump(mode="json")),
-                    Jsonb(
-                        [
-                            "Supplier, Purchase Order and Goods Receipt "
-                            "checks are still required."
-                        ]
-                    ),
                     company_id,
                     invoice_id,
                 ),
@@ -216,6 +247,80 @@ class InvoiceProcessing:
             )
         return state
 
+    def _find_supplier(self, state: InvoiceRun) -> InvoiceRun:
+        company_id, invoice_id = state["company_id"], state["invoice_id"]
+        invoice = self._require(company_id, invoice_id)
+        if invoice.fields is None:
+            return state
+        name = invoice.fields.supplier_name
+        with psycopg.connect(self.database_url) as connection:
+            claimed = connection.execute(
+                """UPDATE invoice_steps SET status = 'Running', inputs = %s,
+                          started_at = %s
+                   WHERE company_id = %s AND invoice_id = %s
+                     AND name = 'Find Supplier' AND status = 'Pending'
+                   RETURNING invoice_id""",
+                (
+                    Jsonb({"name": name}),
+                    datetime.now(UTC),
+                    company_id,
+                    invoice_id,
+                ),
+            ).fetchone()
+        if claimed is None:
+            return state
+        outputs: dict[str, JsonValue]
+        try:
+            supplier = self.erp_tools.find_supplier(company_id, name)
+        except Exception:
+            logger.exception("Supplier lookup failed for %s", invoice_id)
+            supplier = None
+            reason = (
+                "Supplier lookup is unavailable. "
+                "A Reviewer needs to check this Invoice."
+            )
+            step_status = "Failed"
+            outputs = {"reason": reason}
+        else:
+            reason = (
+                "Purchase Order and Goods Receipt checks are still required."
+                if supplier is not None
+                else "Unknown Supplier"
+            )
+            step_status = "Completed"
+            outputs = {
+                "supplier": supplier.model_dump(mode="json")
+                if supplier is not None
+                else None
+            }
+        with psycopg.connect(self.database_url) as connection:
+            connection.execute(
+                """UPDATE invoices SET supplier_id = %s,
+                          status = 'In Review', reasons = %s
+                   WHERE company_id = %s AND id = %s""",
+                (
+                    supplier.id if supplier is not None else None,
+                    Jsonb([reason]),
+                    company_id,
+                    invoice_id,
+                ),
+            )
+            connection.execute(
+                """UPDATE invoice_steps SET status = %s, outputs = %s,
+                          completed_at = %s
+                   WHERE company_id = %s AND invoice_id = %s
+                     AND name = 'Find Supplier'""",
+                (
+                    step_status,
+                    Jsonb(outputs),
+                    datetime.now(UTC),
+                    company_id,
+                    invoice_id,
+                ),
+            )
+            _skip_pending_steps(connection, company_id, invoice_id, reason)
+        return state
+
     def _fail_read(self, company_id: UUID, invoice_id: UUID, reason: str) -> None:
         with psycopg.connect(self.database_url) as connection:
             connection.execute(
@@ -235,3 +340,4 @@ class InvoiceProcessing:
                     invoice_id,
                 ),
             )
+            _skip_pending_steps(connection, company_id, invoice_id, reason)

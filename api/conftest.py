@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import os
 from collections.abc import Iterator
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import psycopg
@@ -7,6 +10,16 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
+
+if TYPE_CHECKING:
+    from invoice_agent.clients.erp_tools import ERPTools
+
+
+@pytest.fixture
+def erp_tools(database_url: str) -> ERPTools:
+    from invoice_agent.app import create_erp_tools
+
+    return create_erp_tools(database_url)
 
 
 @pytest.fixture
