@@ -8,9 +8,3 @@ class Supplier(BaseModel):
 
     id: UUID
     name: str
-
-
-class FindSupplierResult(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    supplier: Supplier | None

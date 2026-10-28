@@ -5,10 +5,10 @@ from uuid import UUID
 
 from fastapi.testclient import TestClient
 
-from invoice_agent.clients.erp_tools import ERPTools
 from invoice_agent.clients.invoice_reader import ScriptedInvoiceReader
 from invoice_agent.schemas.invoice_fields import InvoiceFields, InvoiceLine
 from invoice_agent.schemas.invoices import InvoiceFile
+from invoice_agent.services.erp_tools import ERPTools
 from invoice_agent.services.invoices import InvoiceProcessing
 
 

@@ -5,15 +5,18 @@ from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
-from mcp.server.fastmcp import FastMCP
-from mcp.shared.memory import create_connected_server_and_client_session
 
-from invoice_agent.clients.erp_tools import ERPTools
 from invoice_agent.clients.invoice_reader import ScriptedInvoiceReader
-from invoice_agent.schemas.erp_tools import FindSupplierResult
+from invoice_agent.schemas.erp_tools import Supplier
 from invoice_agent.schemas.invoice_fields import InvoiceFields, InvoiceLine
 from invoice_agent.schemas.invoices import InvoiceFile
+from invoice_agent.services.erp_tools import ERPTools
 from invoice_agent.services.invoices import InvoiceProcessing
+
+
+class UnavailableERPTools(ERPTools):
+    def find_supplier(self, company_id: UUID, name: str) -> Supplier | None:
+        raise RuntimeError("ERP unavailable")
 
 
 @pytest.fixture
@@ -86,18 +89,10 @@ def test_unavailable_erp_goes_in_review(
     supplier_invoice_fields: InvoiceFields,
 ) -> None:
     company_id = UUID(client.post("/api/demo-company").json()["id"])
-    server = FastMCP("Unavailable ERP")
-
-    @server.tool()
-    def find_supplier_by_name(name: str) -> FindSupplierResult:
-        raise RuntimeError("ERP unavailable")
-
     processing = InvoiceProcessing(
         database_url,
         reader=ScriptedInvoiceReader(supplier_invoice_fields),
-        erp_tools=ERPTools(
-            lambda company_id: create_connected_server_and_client_session(server)
-        ),
+        erp_tools=UnavailableERPTools(database_url),
     )
     uploaded = processing.upload(
         company_id,

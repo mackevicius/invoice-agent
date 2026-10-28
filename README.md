@@ -81,11 +81,9 @@ the API loses queued jobs. Deployment will add SQS and S3 (ADR 0001).
 
 ## ERP Tools
 
-After reading, the agent calls `find_supplier_by_name` through the official MCP
-SDK. The local MCP server and client communicate over an in-memory transport;
-no extra service or port is needed. The server is bound to one Demo Company,
-and the tool accepts only a Supplier name, not a Demo Company ID. Only the
-server queries the ERP tables (ADR 0002).
+After reading, the processing graph calls `ERPTools.find_supplier`, which looks
+up the Supplier in the Demo Company's ERP tables. Every ERP read goes through
+`ERPTools`, so a real ERP can replace it without changing the graph (ADR 0002).
 
 Lookup ignores case, punctuation and spacing. A unique match records the
 Supplier's ID and canonical name in the Find Supplier step. No match or an
@@ -104,7 +102,7 @@ fake response to see a known match.
 API tests use real Postgres with pgvector and a separate, disposable schema per
 test. They exercise the HTTP API and the public Process an Invoice interface
 with a scripted model, not internal database functions or paid providers.
-Supplier tests use the real MCP client and server, including name variations,
+Supplier tests use the real ERP tables, including name variations,
 unknown Suppliers, ERP failures and isolation between Demo Companies.
 
 ```sh
@@ -142,9 +140,9 @@ each layer, for example `routes/invoices.py`, `schemas/invoices.py` and
 - `api/src/invoice_agent/routes/`: HTTP endpoints, cookies and status codes.
 - `api/src/invoice_agent/schemas/`: shapes of data in and out.
 - `api/src/invoice_agent/services/`: business rules and SQL: Demo Company
-  sessions, the Process an Invoice graph, Invoice lookups and the MCP ERP server.
+  sessions, the Process an Invoice graph, Invoice lookups and ERP Tools.
 - `api/src/invoice_agent/clients/`: Invoice readers for AI models, the fake
-  reader and its response fixture, and the MCP ERP client.
+  reader and its response fixture.
 - `api/src/invoice_agent/workers/`: local Invoice queue and worker thread.
 - `api/src/invoice_agent/db/`: Postgres schema with pgvector, its startup
   script, and Demo Company sample data.

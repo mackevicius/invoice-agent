@@ -12,14 +12,14 @@ from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
 if TYPE_CHECKING:
-    from invoice_agent.clients.erp_tools import ERPTools
+    from invoice_agent.services.erp_tools import ERPTools
 
 
 @pytest.fixture
 def erp_tools(database_url: str) -> ERPTools:
-    from invoice_agent.app import create_erp_tools
+    from invoice_agent.services.erp_tools import ERPTools
 
-    return create_erp_tools(database_url)
+    return ERPTools(database_url)
 
 
 @pytest.fixture

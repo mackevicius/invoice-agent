@@ -9,9 +9,9 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from pydantic import JsonValue
 
-from invoice_agent.clients.erp_tools import ERPTools
 from invoice_agent.clients.invoice_reader import InvoiceReader
 from invoice_agent.schemas.invoices import InvoiceDetail, InvoiceFile, InvoiceHeader
+from invoice_agent.services.erp_tools import ERPTools
 
 logger = logging.getLogger(__name__)
 

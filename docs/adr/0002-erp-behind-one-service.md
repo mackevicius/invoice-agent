@@ -1,0 +1,3 @@
+# The agent reaches the ERP through one plain service, not MCP
+
+The ERP is a small set of Postgres tables we own. Integrating a real ERP (Odoo, ERPNext) would make the project mostly about that ERP rather than the agent. Every ERP read goes through the `ERPTools` service, so pointing the agent at a real ERP means writing another `ERPTools` that calls it, with no change to the processing graph. We first put an MCP server behind `ERPTools`, but the graph runs a fixed order of steps and no model chooses tools, so MCP added a protocol layer with nothing to gain. We would bring MCP back if a model starts choosing which ERP tools to call.
