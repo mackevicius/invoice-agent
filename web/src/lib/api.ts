@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import { z } from 'zod';
 
 export class ApiError extends Error {}
 export class DemoCompanyExpiredError extends ApiError {}
@@ -23,9 +23,15 @@ export async function request<Result>(
       throw new ApiError('This Invoice is no longer available.');
     }
     const message = 'The Invoice service is temporarily unavailable.';
-    throw response.status >= 500
-      ? new ServiceUnavailableError(message)
-      : new ApiError(message);
+    if (response.status >= 500) throw new ServiceUnavailableError(message);
+    const detail = z
+      .object({ detail: z.string() })
+      .safeParse(await response.json().catch(() => null));
+    throw new ApiError(
+      detail.success
+        ? detail.data.detail
+        : 'This Invoice request could not be completed.',
+    );
   }
 
   const payload: unknown = await response.json().catch(() => null);

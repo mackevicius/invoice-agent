@@ -106,7 +106,9 @@ ALTER TABLE invoices
     ADD COLUMN IF NOT EXISTS file_content BYTEA,
     ADD COLUMN IF NOT EXISTS read_fields JSONB,
     ADD COLUMN IF NOT EXISTS reasons JSONB NOT NULL DEFAULT '[]',
-    ADD COLUMN IF NOT EXISTS comparison JSONB NOT NULL DEFAULT '[]';
+    ADD COLUMN IF NOT EXISTS comparison JSONB NOT NULL DEFAULT '[]',
+    ADD COLUMN IF NOT EXISTS submitted_by TEXT NOT NULL DEFAULT 'submitter',
+    ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 
 ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_currency_check;
 ALTER TABLE invoices ADD CONSTRAINT invoices_currency_check

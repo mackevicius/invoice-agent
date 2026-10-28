@@ -64,7 +64,7 @@ test('a visitor selects an Invoice and returns to the same Demo Company', async 
   });
 });
 
-test('a visitor uploads an Invoice and watches an unknown Supplier stop the run', async ({
+test('a Submitter uploads an unknown Supplier Invoice and a Reviewer approves it', async ({
   page,
 }, testInfo) => {
   const errors: string[] = [];
@@ -74,6 +74,14 @@ test('a visitor uploads an Invoice and watches an unknown Supplier stop the run'
   const sidebar = page.getByRole('complementary', { name: 'Invoices' });
   const detail = page.getByRole('main', { name: 'Invoice details' });
   await expect(sidebar.getByRole('button', { name: /INV-1042/ })).toBeVisible();
+
+  await expect(
+    sidebar.getByRole('combobox', { name: 'Viewing as' }),
+  ).toHaveValue('Submitter');
+  await expect(sidebar.getByRole('tab', { name: /^Mine\b/ })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
 
   await sidebar.getByRole('button', { name: 'Upload Invoice' }).click();
   await expect(
@@ -102,6 +110,7 @@ test('a visitor uploads an Invoice and watches an unknown Supplier stop the run'
   const uploaded = await response.json();
   expect(uploaded.status).toBe('Processing');
   expect(uploaded.steps[0].status).toBe('Pending');
+  expect(uploaded.submitted_by).toBe('submitter');
 
   await expect(
     detail.getByRole('heading', { name: 'INV-2026-42' }),
@@ -133,6 +142,32 @@ test('a visitor uploads an Invoice and watches an unknown Supplier stop the run'
   await expect(
     sidebar.getByRole('button', { name: /INV-2026-42/ }),
   ).toHaveAttribute('aria-pressed', 'true');
+  await expect(
+    detail.getByRole('button', { name: 'Approve', exact: true }),
+  ).toHaveCount(0);
+
+  await sidebar
+    .getByRole('combobox', { name: 'Viewing as' })
+    .selectOption('Reviewer');
+  await expect(
+    sidebar.getByRole('tab', { name: /^Review Queue\b/ }),
+  ).toHaveAttribute('aria-selected', 'true');
+  await sidebar.getByRole('button', { name: /INV-2026-42/ }).click();
+  const approval = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/invoices/${uploaded.id}/approve`) &&
+      response.request().method() === 'POST',
+  );
+  await detail.getByRole('button', { name: 'Approve', exact: true }).click();
+
+  expect((await approval).status()).toBe(200);
+  await expect(detail.getByText('Approved', { exact: true })).toBeVisible();
+  await expect(
+    sidebar.getByRole('button', { name: /INV-2026-42/ }),
+  ).toHaveCount(0);
+  await expect(sidebar.getByRole('tab', { name: /^Done\b/ })).toContainText(
+    '4',
+  );
   expect(
     await page.evaluate(
       () =>
@@ -142,7 +177,7 @@ test('a visitor uploads an Invoice and watches an unknown Supplier stop the run'
   ).toBe(false);
   expect(errors).toEqual([]);
   await page.screenshot({
-    path: testInfo.outputPath('uploaded-invoice.png'),
+    path: testInfo.outputPath('approved-invoice.png'),
     fullPage: true,
   });
 });

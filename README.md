@@ -79,6 +79,34 @@ LangGraph worker on its own thread. Files and step records are deleted with
 their Demo Company. This in-process queue is for local development: restarting
 the API loses queued jobs. Deployment will add SQS and S3 (ADR 0001).
 
+## Roles and Review Queue
+
+**Viewing as** selects Submitter, Reviewer, or Admin. Each role is one fixed
+demo person within the Demo Company, not a login. Everyone can upload, and the
+server records who uploaded each Invoice. Submitters start on **Mine**,
+Reviewers on **Review Queue**, and Admins on **All**. The four tabs show counts;
+**Done** contains Auto-Approved, Approved, and Rejected Invoices.
+
+Only a Reviewer can approve or reject an In Review Invoice, and never one they
+uploaded. Their own uploads show a lock notice instead of decision buttons.
+Processing must finish before a decision, and final decisions cannot be changed.
+Reject requires a non-blank Rejection Reason, which Submitters can read on the
+rejected Invoice. The agent's review reasons are kept separately.
+
+Every Invoice request resolves the Company and person through one server
+dependency (ADR 0003). `X-Demo-Role` accepts `Submitter`, `Reviewer`, or `Admin`;
+omitting it selects Submitter. The Demo Company cookie is still required.
+
+- `GET /api/invoices?view=all|mine|review-queue|done` returns filtered headers.
+- `GET /api/invoices/counts` returns `all`, `mine`, `review_queue`, and `done`
+  counts across the Company, with Mine scoped to the current person.
+- `GET /api/invoices/{id}` includes `submitted_by`, `can_decide`,
+  `decision_block_reason`, and `rejection_reason`.
+- `POST /api/invoices/{id}/approve` approves; `POST /api/invoices/{id}/reject`
+  rejects with `{"rejection_reason": "The goods did not arrive."}`. Reasons
+  are trimmed and limited to 2,000 characters. Permissions, Company isolation,
+  and status transitions are enforced by the API, not just the controls.
+
 ## Daily AI Limits
 
 Live Invoice reads default to **5 per visitor** and **100 across all visitors**
@@ -163,6 +191,9 @@ Price Tolerance, quantities, missing records and simple line pairing.
 Daily AI limit tests cover both caps, concurrent workers, Demo Company renewal,
 midnight UTC reset, zero limits, and scripted reads. The live SDK retry checks
 use a local HTTP endpoint; no paid provider is contacted.
+Role and Review Queue tests exercise permissions, uploader tracking, final
+decisions, required Rejection Reasons, view filters, and counts through the
+HTTP API.
 
 ```sh
 docker compose run --rm api uv run --locked pytest
@@ -185,7 +216,8 @@ PLAYWRIGHT_BASE_URL=http://localhost:3000 npm test
 ```
 
 The browser tests cover Invoice selection, Demo Company persistence and expiry,
-upload through the real API and worker, and the comparison grid's mismatch
+upload through the real API and worker, switching from Submitter to Reviewer
+and approving from the Review Queue, and the comparison grid's mismatch
 colors, lower-price differences and mobile layout. The grid rendering check
 uses a fixed HTTP response; processing rules are tested against real Postgres.
 CI runs Python

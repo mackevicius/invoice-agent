@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { LoaderCircle, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ApiError, DemoCompanyExpiredError } from '@/lib/api';
-import { uploadInvoice, type InvoiceDetail } from './api';
+import { uploadInvoice, type DemoRole, type InvoiceDetail } from './api';
 import styles from './split-view.module.css';
 
 const contentTypes = [
@@ -15,10 +15,12 @@ const contentTypes = [
 ];
 
 export function UploadInvoice({
+  role,
   onUploaded,
   onCancel,
   onExpired,
 }: {
+  role: DemoRole;
   onUploaded: (invoice: InvoiceDetail) => void;
   onCancel: () => void;
   onExpired: (error: DemoCompanyExpiredError) => void;
@@ -27,7 +29,7 @@ export function UploadInvoice({
   const [fileError, setFileError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const upload = useMutation({
-    mutationFn: uploadInvoice,
+    mutationFn: (file: File) => uploadInvoice(file, role),
     onSuccess: onUploaded,
     onError: (error) => {
       if (error instanceof DemoCompanyExpiredError) onExpired(error);

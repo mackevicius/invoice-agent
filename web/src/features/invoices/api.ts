@@ -1,6 +1,19 @@
 import { z } from 'zod';
 import { request } from '@/lib/api';
 
+export const demoRoles = ['Submitter', 'Reviewer', 'Admin'] as const;
+export type DemoRole = (typeof demoRoles)[number];
+export type InvoiceView = 'all' | 'mine' | 'review-queue' | 'done';
+export type InvoiceDecision =
+  { action: 'approve' } | { action: 'reject'; rejectionReason: string };
+
+const invoiceCountsSchema = z.object({
+  all: z.number().int().nonnegative(),
+  mine: z.number().int().nonnegative(),
+  review_queue: z.number().int().nonnegative(),
+  done: z.number().int().nonnegative(),
+});
+
 const decimalSchema = z.string().regex(/^\d+(?:\.\d+)?$/);
 const signedDecimalSchema = z.string().regex(/^-?\d+(?:\.\d+)?$/);
 const invoiceLineSchema = z.object({
@@ -28,6 +41,10 @@ const invoiceHeaderSchema = z.object({
 
 const invoiceDetailSchema = invoiceHeaderSchema.extend({
   filename: z.string().nullable(),
+  submitted_by: z.string(),
+  rejection_reason: z.string().nullable(),
+  can_decide: z.boolean(),
+  decision_block_reason: z.string().nullable(),
   fields: z
     .object({
       supplier_name: z.string(),
@@ -98,26 +115,64 @@ export function money(
   }).format(Number(invoice.total));
 }
 
-export function listInvoices(signal: AbortSignal): Promise<InvoiceHeader[]> {
-  return request('/api/invoices', z.array(invoiceHeaderSchema), { signal });
+export function listInvoices(
+  signal: AbortSignal,
+  role: DemoRole = 'Submitter',
+  view: InvoiceView = 'all',
+): Promise<InvoiceHeader[]> {
+  return request(`/api/invoices?view=${view}`, z.array(invoiceHeaderSchema), {
+    signal,
+    headers: { 'X-Demo-Role': role },
+  });
+}
+
+export function getInvoiceCounts(signal: AbortSignal, role: DemoRole) {
+  return request('/api/invoices/counts', invoiceCountsSchema, {
+    signal,
+    headers: { 'X-Demo-Role': role },
+  });
 }
 
 export function getInvoice(
   id: string,
   signal: AbortSignal,
+  role: DemoRole = 'Submitter',
 ): Promise<InvoiceDetail> {
   return request(
     `/api/invoices/${encodeURIComponent(id)}`,
     invoiceDetailSchema,
-    { signal },
+    { signal, headers: { 'X-Demo-Role': role } },
   );
 }
 
-export function uploadInvoice(file: File): Promise<InvoiceDetail> {
+export function uploadInvoice(
+  file: File,
+  role: DemoRole = 'Submitter',
+): Promise<InvoiceDetail> {
   const body = new FormData();
   body.append('file', file);
   return request('/api/invoices', invoiceDetailSchema, {
     method: 'POST',
     body,
+    headers: { 'X-Demo-Role': role },
   });
+}
+
+export function decideInvoice(
+  id: string,
+  role: DemoRole,
+  decision: InvoiceDecision,
+): Promise<InvoiceDetail> {
+  return request(
+    `/api/invoices/${encodeURIComponent(id)}/${decision.action}`,
+    invoiceDetailSchema,
+    {
+      method: 'POST',
+      headers: { 'X-Demo-Role': role, 'Content-Type': 'application/json' },
+      body:
+        decision.action === 'reject'
+          ? JSON.stringify({ rejection_reason: decision.rejectionReason })
+          : undefined,
+    },
+  );
 }

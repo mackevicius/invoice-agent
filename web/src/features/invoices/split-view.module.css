@@ -55,34 +55,92 @@
   font-size: 11px;
 }
 
-.listHeading {
+.viewTabs {
   display: flex;
-  height: 58px;
+  min-height: 48px;
   flex-shrink: 0;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 16px;
+  border-bottom: 1px solid #303733;
 }
 
-.listHeading h2 {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.count {
-  min-width: 24px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: #303b34;
-  color: #c4d3ca;
+.viewTab {
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 4px;
+  border-bottom: 2px solid transparent;
+  color: #a7b7ad;
+  cursor: pointer;
   font-size: 11px;
-  text-align: center;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.viewTab:nth-child(3) {
+  flex: 1.8;
+}
+
+.viewTab[aria-selected='true'] {
+  border-color: #a0d2b4;
+  color: #eef4f0;
+}
+
+.viewTab:focus-visible,
+.roleSwitch select:focus-visible {
+  outline: 2px solid #a0d2b4;
+  outline-offset: -2px;
+}
+
+.tabCount {
+  color: #a7b7ad;
+  font-family: var(--font-mono);
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
 
-.uploadAction {
+.sidebarControls {
   flex-shrink: 0;
-  padding: 16px 24px 0;
+  padding: 16px 24px;
+}
+
+.roleSwitch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.roleSwitch label {
+  flex-shrink: 0;
+  color: #a7b7ad;
+  font-size: 12px;
+}
+
+.roleSwitch select {
+  min-width: 0;
+  min-height: 36px;
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #49584f;
+  border-radius: 4px;
+  background: #252e28;
+  color: #eef4f0;
+  color-scheme: dark;
+  font-size: 12px;
+}
+
+.uploadAction {
+  margin-top: 12px;
+}
+
+.emptyList {
+  padding: 20px 16px;
+  color: #a7b7ad;
+  font-size: 12px;
 }
 
 .uploadButton {
@@ -319,6 +377,89 @@
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.headerSummary {
+  min-width: 0;
+}
+
+.decisionActions,
+.rejectionActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.decisionActions {
+  margin-top: 20px;
+}
+
+.lockNotice {
+  display: flex;
+  max-width: 300px;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 20px;
+  color: #66786d;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.lockNotice svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.rejectionForm {
+  display: grid;
+  gap: 12px;
+  padding: 24px 40px;
+  border-bottom: 1px solid #e1e7e3;
+  background: #fff;
+}
+
+.rejectionForm label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rejectionForm textarea {
+  width: 100%;
+  min-height: 104px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid #90a69a;
+  border-radius: 4px;
+  background: #f7f9f8;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.rejectionForm textarea:focus-visible {
+  outline: 2px solid #3b7955;
+  outline-offset: 2px;
+}
+
+.decisionError {
+  padding: 20px 40px;
+  background: #fceceb;
+  color: #9a3c36;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.rejectionReason {
+  border-bottom: 1px solid #e1e7e3;
+  background: #fceceb;
+}
+
+.rejectionReason p {
+  color: #9a3c36;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .metadata {
@@ -728,12 +869,15 @@
   .total {
     text-align: left;
   }
+  .decisionActions {
+    justify-content: flex-start;
+  }
 }
 
 @media (width <= 640px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(260px, 42dvh) minmax(0, 1fr);
+    grid-template-rows: minmax(310px, 44dvh) minmax(0, 1fr);
   }
   .sidebar {
     border-right: 0;
@@ -743,12 +887,26 @@
     min-height: 80px;
     padding: 16px 20px;
   }
-  .listHeading {
-    height: 42px;
-    padding: 0 20px;
+  .sidebarControls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 12px;
+    padding: 12px 20px;
+  }
+  .roleSwitch {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
   }
   .uploadAction {
-    padding: 12px 20px 0;
+    margin-top: 0;
+  }
+  .viewTabs {
+    padding: 0 12px;
+  }
+  .viewTab {
+    min-height: 42px;
   }
   .companyFooter {
     min-height: 42px;
@@ -763,6 +921,10 @@
     padding: 24px 20px;
   }
   .metadata {
+    padding: 24px 20px;
+  }
+  .rejectionForm,
+  .decisionError {
     padding: 24px 20px;
   }
   .recordId {

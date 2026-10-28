@@ -1,13 +1,31 @@
-import type { ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
   Circle,
   CircleMinus,
   LoaderCircle,
+  LockKeyhole,
   TriangleAlert,
+  X,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { money, type InvoiceDetail, type LineComparison } from './api';
+import { Button } from '@/components/ui/button';
+import { ApiError, DemoCompanyExpiredError } from '@/lib/api';
+import {
+  decideInvoice,
+  money,
+  type DemoRole,
+  type InvoiceDecision,
+  type InvoiceDetail,
+  type LineComparison,
+} from './api';
 import styles from './split-view.module.css';
 
 export const statusClass: Record<InvoiceDetail['status'], string> = {
@@ -146,7 +164,49 @@ function ComparisonLine({
   );
 }
 
-export function InvoiceDetails({ invoice }: { invoice: InvoiceDetail }) {
+export function InvoiceDetails({
+  invoice,
+  role,
+  onDecided,
+  onExpired,
+}: {
+  invoice: InvoiceDetail;
+  role: DemoRole;
+  onDecided: (invoice: InvoiceDetail) => void;
+  onExpired: (error: DemoCompanyExpiredError) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const reasonInput = useRef<HTMLTextAreaElement>(null);
+  const rejectButton = useRef<HTMLButtonElement>(null);
+  const decision = useMutation({
+    mutationFn: (command: InvoiceDecision) =>
+      decideInvoice(invoice.id, role, command),
+    onSuccess: (result) => {
+      setRejectOpen(false);
+      setReason('');
+      onDecided(result);
+    },
+    onError: (error) => {
+      if (error instanceof DemoCompanyExpiredError) onExpired(error);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    },
+  });
+
+  useEffect(() => {
+    if (rejectOpen) reasonInput.current?.focus();
+  }, [rejectOpen]);
+
+  function reject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (reason.trim() && !decision.isPending) {
+      decision.mutate({ action: 'reject', rejectionReason: reason.trim() });
+    }
+  }
+
   return (
     <article>
       <header className={styles.detailHeader}>
@@ -165,11 +225,114 @@ export function InvoiceDetails({ invoice }: { invoice: InvoiceDetail }) {
                 : 'Supplier not read')}
           </p>
         </div>
-        <div className={styles.total}>
-          <p>Invoice total</p>
-          <strong aria-label="Invoice total">{money(invoice)}</strong>
+        <div className={styles.headerSummary}>
+          <div className={styles.total}>
+            <p>Invoice total</p>
+            <strong aria-label="Invoice total">{money(invoice)}</strong>
+          </div>
+          {invoice.can_decide && (
+            <div className={styles.decisionActions}>
+              <Button
+                disabled={decision.isPending}
+                onClick={() => decision.mutate({ action: 'approve' })}
+              >
+                {decision.isPending &&
+                decision.variables.action === 'approve' ? (
+                  <LoaderCircle aria-hidden="true" className={styles.spin} />
+                ) : (
+                  <Check aria-hidden="true" />
+                )}
+                Approve
+              </Button>
+              <Button
+                ref={rejectButton}
+                variant="outline"
+                disabled={decision.isPending}
+                onClick={() => {
+                  decision.reset();
+                  setRejectOpen(true);
+                }}
+              >
+                <X aria-hidden="true" /> Reject
+              </Button>
+            </div>
+          )}
+          {role === 'Reviewer' &&
+            invoice.status === 'In Review' &&
+            invoice.decision_block_reason && (
+              <p className={styles.lockNotice}>
+                <LockKeyhole aria-hidden="true" size={16} />
+                {invoice.decision_block_reason}
+              </p>
+            )}
         </div>
       </header>
+
+      {rejectOpen && invoice.can_decide && (
+        <form
+          className={styles.rejectionForm}
+          aria-label="Reject Invoice"
+          onSubmit={reject}
+          aria-busy={decision.isPending}
+        >
+          <label htmlFor="rejection-reason">Rejection Reason</label>
+          <textarea
+            ref={reasonInput}
+            id="rejection-reason"
+            required
+            maxLength={2000}
+            rows={3}
+            value={reason}
+            onChange={(event) => setReason(event.currentTarget.value)}
+            disabled={decision.isPending}
+          />
+          <div className={styles.rejectionActions}>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={decision.isPending}
+              onClick={() => {
+                setRejectOpen(false);
+                setReason('');
+                decision.reset();
+                rejectButton.current?.focus();
+              }}
+            >
+              <X aria-hidden="true" /> Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={!reason.trim() || decision.isPending}
+            >
+              {decision.isPending ? (
+                <LoaderCircle aria-hidden="true" className={styles.spin} />
+              ) : (
+                <X aria-hidden="true" />
+              )}
+              Reject Invoice
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {decision.error && (
+        <p className={styles.decisionError} role="alert">
+          {decision.error instanceof ApiError
+            ? decision.error.message
+            : 'Unable to save this decision. Please try again.'}
+        </p>
+      )}
+
+      {invoice.rejection_reason && (
+        <section
+          className={`${styles.reasons} ${styles.rejectionReason}`}
+          aria-label="Rejection Reason"
+        >
+          <h2>Rejection Reason</h2>
+          <p>{invoice.rejection_reason}</p>
+        </section>
+      )}
 
       {invoice.steps.length > 0 && (
         <section className={styles.pipeline} aria-label="Agent progress">

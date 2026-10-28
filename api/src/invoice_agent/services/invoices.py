@@ -5,13 +5,21 @@ from uuid import UUID, uuid4
 
 import psycopg
 from langgraph.graph import END, START, StateGraph
+from psycopg import sql
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from pydantic import JsonValue
 
 from invoice_agent.clients.invoice_reader import InvoiceReader
+from invoice_agent.schemas.demo_company import DemoPerson
 from invoice_agent.schemas.erp_tools import GoodsReceipt, PurchaseOrder, Supplier
-from invoice_agent.schemas.invoices import InvoiceDetail, InvoiceFile, InvoiceHeader
+from invoice_agent.schemas.invoices import (
+    InvoiceCounts,
+    InvoiceDetail,
+    InvoiceFile,
+    InvoiceHeader,
+    InvoiceView,
+)
 from invoice_agent.schemas.three_way_match import LineComparison, PairedLine
 from invoice_agent.services.daily_ai_limit import DailyAILimit
 from invoice_agent.services.erp_tools import ERPTools
@@ -29,6 +37,13 @@ INVOICE_STEPS = (
     "Check Duplicates",
     "Decide",
 )
+
+_VIEW_FILTERS: dict[InvoiceView, str] = {
+    "all": "TRUE",
+    "mine": "submitted_by = %(submitted_by)s",
+    "review-queue": "status = 'In Review'",
+    "done": "status IN ('Auto-Approved', 'Approved', 'Rejected')",
+}
 
 
 def _skip_pending_steps(
@@ -57,6 +72,14 @@ class InvoiceRun(TypedDict):
 
 
 class InvoiceNotFound(LookupError):
+    pass
+
+
+class InvoicePermissionDenied(PermissionError):
+    pass
+
+
+class InvoiceDecisionConflict(ValueError):
     pass
 
 
@@ -90,15 +113,21 @@ class InvoiceProcessing:
         graph.add_edge("decide", END)
         self.graph = graph.compile()
 
-    def upload(self, company_id: UUID, document: InvoiceFile) -> InvoiceDetail:
+    def upload(
+        self,
+        company_id: UUID,
+        document: InvoiceFile,
+        *,
+        submitted_by: str = "submitter",
+    ) -> InvoiceDetail:
         invoice_id = uuid4()
         now = datetime.now(UTC)
         with psycopg.connect(self.database_url) as connection:
             inserted = connection.execute(
                 """INSERT INTO invoices
                    (id, company_id, status, created_at,
-                    file_name, content_type, file_content)
-                   SELECT %s, id, 'Processing', %s, %s, %s, %s
+                    file_name, content_type, file_content, submitted_by)
+                   SELECT %s, id, 'Processing', %s, %s, %s, %s, %s
                    FROM demo_companies WHERE id = %s AND expires_at > %s
                    RETURNING id""",
                 (
@@ -107,6 +136,7 @@ class InvoiceProcessing:
                     document.filename,
                     document.content_type,
                     document.content,
+                    submitted_by,
                     company_id,
                     now,
                 ),
@@ -139,24 +169,53 @@ class InvoiceProcessing:
         self.graph.invoke({"company_id": company_id, "invoice_id": invoice_id})
         return self._require(company_id, invoice_id)
 
-    def list_headers(self, company_id: UUID) -> list[InvoiceHeader]:
+    def list_headers(
+        self,
+        company_id: UUID,
+        *,
+        view: InvoiceView = "all",
+        submitted_by: str = "submitter",
+    ) -> list[InvoiceHeader]:
         with psycopg.connect(self.database_url, row_factory=dict_row) as connection:
             invoices = connection.execute(
-                """SELECT id, invoice_number, supplier_name AS supplier,
+                sql.SQL("""SELECT id, invoice_number, supplier_name AS supplier,
                           total, currency, status, issued_on
-                   FROM invoices WHERE company_id = %s
-                   ORDER BY created_at DESC, id""",
-                (company_id,),
+                   FROM invoices WHERE company_id = %(company_id)s
+                     AND {view_filter}
+                   ORDER BY created_at DESC, id""").format(
+                    view_filter=sql.SQL(_VIEW_FILTERS[view])
+                ),
+                {"company_id": company_id, "submitted_by": submitted_by},
             ).fetchall()
         return [InvoiceHeader.model_validate(invoice) for invoice in invoices]
 
-    def get(self, company_id: UUID, invoice_id: UUID) -> InvoiceDetail | None:
+    def counts(self, person: DemoPerson) -> InvoiceCounts:
+        with psycopg.connect(self.database_url, row_factory=dict_row) as connection:
+            counts = connection.execute(
+                """SELECT count(*) AS "all",
+                          count(*) FILTER (WHERE submitted_by = %s) AS mine,
+                          count(*) FILTER (WHERE status = 'In Review') AS review_queue,
+                          count(*) FILTER (
+                              WHERE status IN ('Auto-Approved', 'Approved', 'Rejected')
+                          ) AS done
+                   FROM invoices WHERE company_id = %s""",
+                (person.id, person.company_id),
+            ).fetchone()
+        return InvoiceCounts.model_validate(counts)
+
+    def get(
+        self,
+        company_id: UUID,
+        invoice_id: UUID,
+        *,
+        person: DemoPerson | None = None,
+    ) -> InvoiceDetail | None:
         with psycopg.connect(self.database_url, row_factory=dict_row) as connection:
             invoice = connection.execute(
                 """SELECT invoice.id, invoice_number, supplier_name AS supplier,
                           total, invoice.currency, status, issued_on,
                           file_name AS filename, read_fields AS fields, reasons,
-                          comparison
+                          comparison, submitted_by, rejection_reason
                    FROM invoices AS invoice
                    JOIN demo_companies AS company ON company.id = invoice.company_id
                    WHERE company_id = %s AND invoice.id = %s
@@ -171,12 +230,71 @@ class InvoiceProcessing:
                    ORDER BY position""",
                 (company_id, invoice_id),
             ).fetchall()
-        return InvoiceDetail.model_validate({**invoice, "steps": steps})
+        detail = InvoiceDetail.model_validate({**invoice, "steps": steps})
+        if person is not None:
+            try:
+                self._check_decision_permission(person, detail)
+            except (InvoicePermissionDenied, InvoiceDecisionConflict) as error:
+                detail.decision_block_reason = str(error)
+            else:
+                detail.can_decide = True
+        return detail
 
     def _require(self, company_id: UUID, invoice_id: UUID) -> InvoiceDetail:
         invoice = self.get(company_id, invoice_id)
         if invoice is None:
             raise InvoiceNotFound("Invoice not found.")
+        return invoice
+
+    def _check_decision_permission(
+        self, person: DemoPerson, invoice: InvoiceDetail
+    ) -> None:
+        if person.role != "Reviewer":
+            raise InvoicePermissionDenied("Only a Reviewer can decide an Invoice.")
+        if invoice.submitted_by == person.id:
+            raise InvoicePermissionDenied("You cannot decide an Invoice you uploaded.")
+        if invoice.status != "In Review":
+            raise InvoiceDecisionConflict("Only an In Review Invoice can be decided.")
+        if any(step.status in {"Pending", "Running"} for step in invoice.steps):
+            raise InvoiceDecisionConflict("Invoice processing is still running.")
+
+    def decide(
+        self,
+        person: DemoPerson,
+        invoice_id: UUID,
+        decision: Literal["Approved", "Rejected"],
+        rejection_reason: str | None = None,
+    ) -> InvoiceDetail:
+        invoice = self._require(person.company_id, invoice_id)
+        self._check_decision_permission(person, invoice)
+        with psycopg.connect(self.database_url) as connection:
+            updated = connection.execute(
+                """UPDATE invoices SET status = %s, rejection_reason = %s
+                   WHERE company_id = %s AND id = %s AND status = 'In Review'
+                     AND submitted_by <> %s
+                     AND NOT EXISTS (
+                         SELECT 1 FROM invoice_steps
+                         WHERE company_id = %s AND invoice_id = %s
+                           AND status IN ('Pending', 'Running')
+                     )
+                     AND EXISTS (SELECT 1 FROM demo_companies
+                                 WHERE id = %s AND expires_at > %s)
+                   RETURNING id""",
+                (
+                    decision,
+                    rejection_reason,
+                    person.company_id,
+                    invoice_id,
+                    person.id,
+                    person.company_id,
+                    invoice_id,
+                    person.company_id,
+                    datetime.now(UTC),
+                ),
+            ).fetchone()
+        invoice = self._require(person.company_id, invoice_id)
+        if updated is None:
+            raise InvoiceDecisionConflict("Only an In Review Invoice can be decided.")
         return invoice
 
     def _read_invoice(self, state: InvoiceRun) -> InvoiceRun:

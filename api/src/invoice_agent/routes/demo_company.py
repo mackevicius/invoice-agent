@@ -2,9 +2,9 @@ from collections.abc import Callable
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Cookie, HTTPException, Response
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
 
-from invoice_agent.schemas.demo_company import DemoCompany
+from invoice_agent.schemas.demo_company import DemoCompany, DemoPerson, DemoRole
 from invoice_agent.services.demo_company import DemoCompanies
 
 
@@ -61,3 +61,17 @@ def require_demo_company(
         return company_id
 
     return current_company_id
+
+
+def require_demo_person(
+    companies: DemoCompanies,
+) -> Callable[[UUID, DemoRole], DemoPerson]:
+    current_company_id = require_demo_company(companies)
+
+    def current_person(
+        company_id: Annotated[UUID, Depends(current_company_id)],
+        role: Annotated[DemoRole, Header(alias="X-Demo-Role")] = "Submitter",
+    ) -> DemoPerson:
+        return DemoPerson(company_id=company_id, id=role.lower(), role=role)
+
+    return current_person

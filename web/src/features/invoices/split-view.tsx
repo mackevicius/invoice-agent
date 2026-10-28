@@ -1,7 +1,18 @@
 'use client';
 
-import { useRef, useState, type ReactNode } from 'react';
-import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
+import {
+  skipToken,
+  useIsMutating,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import {
   ChevronRight,
   Clock3,
@@ -21,15 +32,32 @@ import {
 import { startDemoCompany } from '@/features/demo-company/api';
 import { ApiError, DemoCompanyExpiredError } from '@/lib/api';
 import {
+  demoRoles,
   getInvoice,
+  getInvoiceCounts,
   listInvoices,
   money,
+  type DemoRole,
   type InvoiceDetail,
   type InvoiceHeader,
+  type InvoiceView,
 } from './api';
 import { InvoiceDetails, statusClass } from './invoice-details';
 import { UploadInvoice } from './upload-invoice';
 import styles from './split-view.module.css';
+
+const views = [
+  { id: 'all', label: 'All', count: 'all' },
+  { id: 'mine', label: 'Mine', count: 'mine' },
+  { id: 'review-queue', label: 'Review Queue', count: 'review_queue' },
+  { id: 'done', label: 'Done', count: 'done' },
+] as const;
+
+const defaultViews: Record<DemoRole, InvoiceView> = {
+  Submitter: 'mine',
+  Reviewer: 'review-queue',
+  Admin: 'all',
+};
 
 function errorMessage(error: unknown): string {
   return error instanceof ApiError
@@ -39,10 +67,13 @@ function errorMessage(error: unknown): string {
 
 export function SplitView() {
   const queryClient = useQueryClient();
+  const busy = useIsMutating() > 0;
   const main = useRef<HTMLElement>(null);
+  const [role, setRole] = useState<DemoRole>('Submitter');
+  const [view, setView] = useState<InvoiceView>('mine');
   const [chosenId, setChosenId] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadSessionError, setUploadSessionError] =
+  const [sessionError, setSessionError] =
     useState<DemoCompanyExpiredError | null>(null);
 
   const demoCompany = useQuery({
@@ -51,9 +82,20 @@ export function SplitView() {
     staleTime: Infinity,
   });
   const companyId = demoCompany.data?.id;
+  const invoiceCounts = useQuery({
+    queryKey: ['invoices', companyId, 'counts', role],
+    queryFn: ({ signal }) => getInvoiceCounts(signal, role),
+    enabled: companyId !== undefined,
+    refetchInterval: (query) => {
+      const counts = query.state.data;
+      return counts && counts.all > counts.review_queue + counts.done
+        ? 1000
+        : false;
+    },
+  });
   const invoiceList = useQuery({
-    queryKey: ['invoices', companyId],
-    queryFn: ({ signal }) => listInvoices(signal),
+    queryKey: ['invoices', companyId, 'list', role, view],
+    queryFn: ({ signal }) => listInvoices(signal, role, view),
     enabled: companyId !== undefined,
     refetchInterval: (query) =>
       query.state.data?.some((invoice) => invoice.status === 'Processing')
@@ -61,29 +103,78 @@ export function SplitView() {
         : false,
   });
 
+  useEffect(() => {
+    if (companyId && invoiceCounts.data) {
+      void queryClient.invalidateQueries({
+        queryKey: ['invoices', companyId, 'list'],
+      });
+    }
+  }, [companyId, invoiceCounts.data, queryClient]);
+
   const invoices = invoiceList.isSuccess ? invoiceList.data : [];
   const company = invoiceList.isSuccess ? demoCompany.data : undefined;
-  const selected =
-    invoices.find((invoice) => invoice.id === chosenId) ?? invoices[0];
-  const selectedId = selected?.id ?? null;
+  const selectedId = chosenId ?? invoices[0]?.id ?? null;
 
   const invoice = useQuery({
-    queryKey: ['invoices', companyId, selectedId],
+    queryKey: ['invoices', companyId, 'detail', role, selectedId],
     queryFn:
       selectedId === null
         ? skipToken
-        : ({ signal }) => getInvoice(selectedId, signal),
+        : ({ signal }) => getInvoice(selectedId, signal, role),
     enabled: !uploadOpen,
     refetchInterval: (query) =>
-      query.state.data?.status === 'Processing' ? 1000 : false,
+      query.state.data?.status === 'Processing' ||
+      query.state.data?.steps.some((step) =>
+        ['Pending', 'Running'].includes(step.status),
+      )
+        ? 1000
+        : false,
   });
+  const selected =
+    invoices.find((header) => header.id === selectedId) ?? invoice.data;
 
   const error =
     demoCompany.error ??
     invoiceList.error ??
+    invoiceCounts.error ??
     invoice.error ??
-    uploadSessionError;
-  const loading = !demoCompany.isError && invoiceList.isPending;
+    sessionError;
+  const loading =
+    !demoCompany.isError && (invoiceList.isPending || invoiceCounts.isPending);
+
+  function changeView(nextView: InvoiceView) {
+    setView(nextView);
+    setChosenId(null);
+    setUploadOpen(false);
+    main.current?.scrollTo({ top: 0 });
+  }
+
+  function changeRole(nextRole: DemoRole) {
+    setRole(nextRole);
+    changeView(defaultViews[nextRole]);
+  }
+
+  function navigateTabs(event: KeyboardEvent<HTMLDivElement>) {
+    if (busy) return;
+    const index = views.findIndex((tab) => tab.id === view);
+    const nextIndex =
+      event.key === 'ArrowRight'
+        ? (index + 1) % views.length
+        : event.key === 'ArrowLeft'
+          ? (index + views.length - 1) % views.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? views.length - 1
+              : null;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    const nextView = views[nextIndex].id;
+    changeView(nextView);
+    event.currentTarget
+      .querySelector<HTMLButtonElement>(`#invoice-view-${nextView}`)
+      ?.focus();
+  }
 
   function refresh() {
     void queryClient.resetQueries({
@@ -92,22 +183,38 @@ export function SplitView() {
   }
 
   function startNewDemoCompany() {
-    setUploadSessionError(null);
+    setSessionError(null);
     setUploadOpen(false);
+    setChosenId(null);
+    setView(defaultViews[role]);
     void queryClient.resetQueries({ queryKey: ['demo-company'] });
   }
 
   function uploaded(invoice: InvoiceDetail) {
-    queryClient.setQueryData(['invoices', companyId, invoice.id], invoice);
+    queryClient.setQueryData(
+      ['invoices', companyId, 'detail', role, invoice.id],
+      invoice,
+    );
     queryClient.setQueryData<InvoiceHeader[]>(
-      ['invoices', companyId],
+      ['invoices', companyId, 'list', role, 'mine'],
       (current) => [
         invoice,
         ...(current ?? []).filter((existing) => existing.id !== invoice.id),
       ],
     );
+    setView('mine');
     setChosenId(invoice.id);
     setUploadOpen(false);
+    main.current?.scrollTo({ top: 0 });
+    void queryClient.invalidateQueries({ queryKey: ['invoices', companyId] });
+  }
+
+  function decided(invoice: InvoiceDetail) {
+    queryClient.setQueryData(
+      ['invoices', companyId, 'detail', role, invoice.id],
+      invoice,
+    );
+    setChosenId(invoice.id);
     main.current?.scrollTo({ top: 0 });
   }
 
@@ -133,10 +240,11 @@ export function SplitView() {
   } else if (uploadOpen) {
     content = (
       <UploadInvoice
-        key={companyId}
+        key={`${companyId}:${role}`}
+        role={role}
         onUploaded={uploaded}
         onCancel={() => setUploadOpen(false)}
-        onExpired={setUploadSessionError}
+        onExpired={setSessionError}
       />
     );
   } else if (selectedId === null) {
@@ -147,7 +255,15 @@ export function SplitView() {
       </div>
     );
   } else if (invoice.isSuccess) {
-    content = <InvoiceDetails invoice={invoice.data} />;
+    content = (
+      <InvoiceDetails
+        key={`${role}:${invoice.data.id}`}
+        invoice={invoice.data}
+        role={role}
+        onDecided={decided}
+        onExpired={setSessionError}
+      />
+    );
   } else {
     content = <LoadingInvoice />;
   }
@@ -168,75 +284,125 @@ export function SplitView() {
           </div>
         </header>
 
-        <div className={styles.uploadAction}>
-          <Button
-            className={styles.uploadButton}
-            onClick={() => {
-              setUploadOpen(true);
-              main.current?.scrollTo({ top: 0 });
-            }}
-            disabled={loading || Boolean(error)}
-            aria-pressed={uploadOpen}
-          >
-            <Upload aria-hidden="true" /> Upload Invoice
-          </Button>
+        <div className={styles.sidebarControls}>
+          <div className={styles.roleSwitch}>
+            <label htmlFor="viewing-as">Viewing as</label>
+            <select
+              id="viewing-as"
+              value={role}
+              onChange={(event) =>
+                changeRole(event.currentTarget.value as DemoRole)
+              }
+              disabled={busy}
+            >
+              {demoRoles.map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.uploadAction}>
+            <Button
+              className={styles.uploadButton}
+              onClick={() => {
+                setUploadOpen(true);
+                main.current?.scrollTo({ top: 0 });
+              }}
+              disabled={loading || Boolean(error) || busy}
+              aria-pressed={uploadOpen}
+            >
+              <Upload aria-hidden="true" /> Upload Invoice
+            </Button>
+          </div>
         </div>
 
-        <div className={styles.listHeading}>
-          <h2>Invoices</h2>
-          <span className={styles.count}>
-            {invoiceList.isSuccess ? invoices.length : '-'}
-          </span>
+        <div
+          className={styles.viewTabs}
+          role="tablist"
+          aria-label="Invoice views"
+          onKeyDown={navigateTabs}
+        >
+          {views.map((tab) => (
+            <button
+              key={tab.id}
+              id={`invoice-view-${tab.id}`}
+              type="button"
+              role="tab"
+              aria-selected={view === tab.id}
+              aria-controls="invoice-list"
+              tabIndex={view === tab.id ? 0 : -1}
+              className={styles.viewTab}
+              onClick={() => changeView(tab.id)}
+              disabled={busy}
+            >
+              {tab.label}{' '}
+              <span className={styles.tabCount}>
+                {invoiceCounts.data?.[tab.count] ?? '-'}
+              </span>
+            </button>
+          ))}
         </div>
 
         <nav className={styles.invoiceList} aria-label="Invoice list">
-          {loading ? (
-            <ul aria-label="Loading Invoices" aria-busy="true">
-              {Array.from({ length: 5 }, (_, index) => (
-                <li className={styles.loadingRow} key={index}>
-                  <Skeleton className="h-3 w-24 bg-white/10" />
-                  <Skeleton className="mt-3 h-3 w-40 bg-white/10" />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <ul>
-              {invoices.map((invoice) => (
-                <li key={invoice.id}>
-                  <button
-                    type="button"
-                    className={styles.invoiceButton}
-                    aria-pressed={!uploadOpen && selectedId === invoice.id}
-                    onClick={() => {
-                      setChosenId(invoice.id);
-                      setUploadOpen(false);
-                      main.current?.scrollTo({ top: 0 });
-                    }}
-                  >
-                    <span className={styles.invoiceRow}>
-                      <span className={styles.invoiceIdentity}>
-                        <span
-                          aria-hidden="true"
-                          className={`${styles.statusDot} ${statusClass[invoice.status]}`}
-                        />
-                        <span className={styles.invoiceNumber}>
-                          {invoice.invoice_number ?? 'Reading Invoice'}
+          <div
+            id="invoice-list"
+            role="tabpanel"
+            aria-labelledby={`invoice-view-${view}`}
+            tabIndex={0}
+          >
+            {loading ? (
+              <ul aria-label="Loading Invoices" aria-busy="true">
+                {Array.from({ length: 5 }, (_, index) => (
+                  <li className={styles.loadingRow} key={index}>
+                    <Skeleton className="h-3 w-24 bg-white/10" />
+                    <Skeleton className="mt-3 h-3 w-40 bg-white/10" />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <ul>
+                {invoices.map((invoice) => (
+                  <li key={invoice.id}>
+                    <button
+                      type="button"
+                      className={styles.invoiceButton}
+                      disabled={busy}
+                      aria-pressed={!uploadOpen && selectedId === invoice.id}
+                      onClick={() => {
+                        setChosenId(invoice.id);
+                        setUploadOpen(false);
+                        main.current?.scrollTo({ top: 0 });
+                      }}
+                    >
+                      <span className={styles.invoiceRow}>
+                        <span className={styles.invoiceIdentity}>
+                          <span
+                            aria-hidden="true"
+                            className={`${styles.statusDot} ${statusClass[invoice.status]}`}
+                          />
+                          <span className={styles.invoiceNumber}>
+                            {invoice.invoice_number ?? 'Reading Invoice'}
+                          </span>
+                        </span>
+                        <span className={styles.listTotal}>
+                          {money(invoice)}
                         </span>
                       </span>
-                      <span className={styles.listTotal}>{money(invoice)}</span>
-                    </span>
-                    <span
-                      className={styles.supplierName}
-                      title={invoice.supplier ?? undefined}
-                    >
-                      {invoice.supplier ?? invoice.status}
-                    </span>
-                    <span className="sr-only">{invoice.status}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                      <span
+                        className={styles.supplierName}
+                        title={invoice.supplier ?? undefined}
+                      >
+                        {invoice.supplier ?? invoice.status}
+                      </span>
+                      <span className="sr-only">{invoice.status}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!loading && invoices.length === 0 && (
+              <p className={styles.emptyList}>No Invoices</p>
+            )}
+          </div>
         </nav>
 
         <footer className={styles.companyFooter}>

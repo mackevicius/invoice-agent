@@ -1,13 +1,22 @@
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field, JsonValue, StringConstraints
 
 from invoice_agent.schemas.invoice_fields import InvoiceFields
 from invoice_agent.schemas.three_way_match import LineComparison
+
+InvoiceView = Literal["all", "mine", "review-queue", "done"]
+
+
+class InvoiceCounts(BaseModel):
+    all: int
+    mine: int
+    review_queue: int
+    done: int
 
 
 @dataclass(frozen=True)
@@ -39,6 +48,16 @@ class InvoiceStep(BaseModel):
 class InvoiceDetail(InvoiceHeader):
     filename: str | None
     fields: InvoiceFields | None
+    submitted_by: str = "submitter"
+    rejection_reason: str | None = None
+    can_decide: bool = False
+    decision_block_reason: str | None = None
     comparison: list[LineComparison] = Field(default_factory=list)
     reasons: list[str] = Field(default_factory=list)
     steps: list[InvoiceStep] = Field(default_factory=list)
+
+
+class InvoiceRejection(BaseModel):
+    rejection_reason: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)
+    ]

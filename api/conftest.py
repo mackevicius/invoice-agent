@@ -4,6 +4,7 @@ import os
 from collections.abc import Callable, Iterator
 from datetime import date
 from decimal import Decimal
+from time import monotonic, sleep
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -14,6 +15,7 @@ from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
 if TYPE_CHECKING:
+    from invoice_agent.schemas.demo_company import DemoRole
     from invoice_agent.schemas.invoice_fields import InvoiceFields
     from invoice_agent.schemas.invoices import InvoiceDetail
     from invoice_agent.services.erp_tools import ERPTools
@@ -83,6 +85,37 @@ def process_invoice(
         return result
 
     return process
+
+
+@pytest.fixture
+def upload_for_review(
+    client: TestClient,
+) -> Callable[[DemoRole], InvoiceDetail]:
+    from invoice_agent.schemas.invoices import InvoiceDetail
+
+    client.post("/api/demo-company")
+
+    def upload(role: DemoRole) -> InvoiceDetail:
+        response = client.post(
+            "/api/invoices",
+            headers={"X-Demo-Role": role},
+            files={"file": ("invoice.pdf", b"%PDF-1.4\nInvoice", "application/pdf")},
+        )
+        assert response.status_code == 202
+        invoice_id = response.json()["id"]
+        deadline = monotonic() + 5
+        while monotonic() < deadline:
+            invoice = InvoiceDetail.model_validate(
+                client.get(f"/api/invoices/{invoice_id}").json()
+            )
+            if invoice.status == "In Review" and all(
+                step.status not in {"Pending", "Running"} for step in invoice.steps
+            ):
+                return invoice
+            sleep(0.01)
+        pytest.fail("Invoice processing did not finish.")
+
+    return upload
 
 
 @pytest.fixture
