@@ -8,7 +8,18 @@ CREATE TABLE IF NOT EXISTS demo_companies (
     currency TEXT NOT NULL DEFAULT 'EUR' CHECK (currency = 'EUR')
 );
 
+ALTER TABLE demo_companies ADD COLUMN IF NOT EXISTS visitor_id UUID;
+UPDATE demo_companies SET visitor_id = id WHERE visitor_id IS NULL;
+ALTER TABLE demo_companies ALTER COLUMN visitor_id SET NOT NULL;
+
 CREATE INDEX IF NOT EXISTS demo_companies_expiry ON demo_companies(expires_at);
+
+CREATE TABLE IF NOT EXISTS daily_ai_usage (
+    usage_date DATE NOT NULL,
+    visitor_id UUID NOT NULL,
+    calls INTEGER NOT NULL CHECK (calls > 0),
+    PRIMARY KEY (usage_date, visitor_id)
+);
 
 CREATE TABLE IF NOT EXISTS suppliers (
     id UUID PRIMARY KEY,

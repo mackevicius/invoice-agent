@@ -13,6 +13,7 @@ from invoice_agent.clients.invoice_reader import InvoiceReader
 from invoice_agent.schemas.erp_tools import GoodsReceipt, PurchaseOrder, Supplier
 from invoice_agent.schemas.invoices import InvoiceDetail, InvoiceFile, InvoiceHeader
 from invoice_agent.schemas.three_way_match import LineComparison, PairedLine
+from invoice_agent.services.daily_ai_limit import DailyAILimit
 from invoice_agent.services.erp_tools import ERPTools
 from invoice_agent.services.three_way_match import compare_lines, pair_lines
 
@@ -61,11 +62,16 @@ class InvoiceNotFound(LookupError):
 
 class InvoiceProcessing:
     def __init__(
-        self, database_url: str, reader: InvoiceReader, erp_tools: ERPTools
+        self,
+        database_url: str,
+        reader: InvoiceReader,
+        erp_tools: ERPTools,
+        daily_ai_limit: DailyAILimit,
     ) -> None:
         self.database_url = database_url
         self.reader = reader
         self.erp_tools = erp_tools
+        self.daily_ai_limit = daily_ai_limit
         graph = StateGraph(InvoiceRun)
         graph.add_node("read_invoice", self._read_invoice)
         graph.add_node("find_supplier", self._find_supplier)
@@ -201,6 +207,11 @@ class InvoiceProcessing:
         if stored is None:
             raise InvoiceNotFound("Invoice not found.")
         try:
+            if self.reader.uses_live_model and not self.daily_ai_limit.reserve(
+                company_id
+            ):
+                self._fail_read(company_id, invoice_id, "daily AI limit reached")
+                return state
             fields = self.reader.read(
                 InvoiceFile(
                     filename=stored["file_name"],

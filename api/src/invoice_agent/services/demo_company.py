@@ -15,13 +15,16 @@ from invoice_agent.schemas.demo_company import DemoCompany
 class StartedDemoCompany:
     company: DemoCompany
     new_token: str | None  # None when an existing session was resumed
+    visitor_id: UUID
 
 
 @dataclass(frozen=True)
 class DemoCompanies:
     database_url: str
 
-    def start(self, token: str | None) -> StartedDemoCompany:
+    def start(
+        self, token: str | None, visitor_id: UUID | None = None
+    ) -> StartedDemoCompany:
         now = datetime.now(UTC)
         with psycopg.connect(self.database_url) as connection:
             connection.execute(
@@ -29,7 +32,7 @@ class DemoCompanies:
             )
             if token:
                 existing = connection.execute(
-                    """SELECT id, expires_at FROM demo_companies
+                    """SELECT id, expires_at, visitor_id FROM demo_companies
                        WHERE session_hash = %s AND expires_at > %s""",
                     (sha256(token.encode()).hexdigest(), now),
                 ).fetchone()
@@ -37,23 +40,26 @@ class DemoCompanies:
                     return StartedDemoCompany(
                         DemoCompany(id=existing[0], expires_at=existing[1]),
                         new_token=None,
+                        visitor_id=existing[2],
                     )
 
             company = DemoCompany(id=uuid4(), expires_at=now + timedelta(hours=24))
             new_token = token_urlsafe(32)
+            visitor_id = visitor_id or uuid4()
             connection.execute(
                 """INSERT INTO demo_companies
-                   (id, session_hash, created_at, expires_at)
-                   VALUES (%s, %s, %s, %s)""",
+                   (id, visitor_id, session_hash, created_at, expires_at)
+                   VALUES (%s, %s, %s, %s, %s)""",
                 (
                     company.id,
+                    visitor_id,
                     sha256(new_token.encode()).hexdigest(),
                     now,
                     company.expires_at,
                 ),
             )
             seed_demo_company(connection, company.id, now)
-        return StartedDemoCompany(company, new_token)
+        return StartedDemoCompany(company, new_token, visitor_id)
 
     def identify(self, token: str | None) -> UUID | None:
         if token is None:

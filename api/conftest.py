@@ -60,11 +60,15 @@ def process_invoice(
 ) -> Callable[[InvoiceFields], InvoiceDetail]:
     from invoice_agent.clients.invoice_reader import ScriptedInvoiceReader
     from invoice_agent.schemas.invoices import InvoiceFile
+    from invoice_agent.services.daily_ai_limit import DailyAILimit
     from invoice_agent.services.invoices import InvoiceProcessing
 
     def process(fields: InvoiceFields) -> InvoiceDetail:
         processing = InvoiceProcessing(
-            database_url, reader=ScriptedInvoiceReader(fields), erp_tools=erp_tools
+            database_url,
+            reader=ScriptedInvoiceReader(fields),
+            erp_tools=erp_tools,
+            daily_ai_limit=DailyAILimit(database_url),
         )
         uploaded = processing.upload(
             matching_company,

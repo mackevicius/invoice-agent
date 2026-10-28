@@ -79,6 +79,33 @@ LangGraph worker on its own thread. Files and step records are deleted with
 their Demo Company. This in-process queue is for local development: restarting
 the API loses queued jobs. Deployment will add SQS and S3 (ADR 0001).
 
+## Daily AI Limits
+
+Live Invoice reads default to **5 per visitor** and **100 across all visitors**
+per UTC calendar day. Override the limits with non-negative integers when
+starting the API:
+
+```sh
+INVOICE_AI_DAILY_VISITOR_LIMIT=3 INVOICE_AI_DAILY_GLOBAL_LIMIT=50 docker compose up --build
+```
+
+At either limit, no model is called. The Invoice finishes In Review with the
+reason **daily AI limit reached**, and later steps are Skipped. Setting either
+limit to `0` disables live reads. Scripted reads and seeded sample Invoices do
+not consume the allowance and remain available after the limit is reached.
+
+A separate HttpOnly visitor cookie preserves the allowance across Demo Company
+renewals. It lasts two days and does not grant access to Invoice data; the Demo
+Company session cookie still expires after 24 hours. Clearing cookies creates a
+new anonymous visitor, but does not reset the global allowance.
+
+Usage is reserved in Postgres before the live call, including attempts that fail
+or return an unreadable result. Reservations are atomic across workers and
+survive API restarts. Provider SDK retries are disabled, so one reservation sends
+at most one request. Counts start again at midnight UTC without a scheduled reset.
+Previous usage stays stored even when a Demo Company expires, so deleting a
+company's records cannot restore the global allowance.
+
 ## ERP Tools
 
 After reading, the processing graph calls `ERPTools.find_supplier`, which looks
@@ -133,6 +160,9 @@ Supplier tests use the real ERP tables, including name variations,
 unknown Suppliers, ERP failures and isolation between Demo Companies.
 Three-Way Match tests use the same public interface, with separate files for
 Price Tolerance, quantities, missing records and simple line pairing.
+Daily AI limit tests cover both caps, concurrent workers, Demo Company renewal,
+midnight UTC reset, zero limits, and scripted reads. The live SDK retry checks
+use a local HTTP endpoint; no paid provider is contacted.
 
 ```sh
 docker compose run --rm api uv run --locked pytest

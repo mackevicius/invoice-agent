@@ -11,6 +11,7 @@ from invoice_agent.clients.reader_settings import configured_reader
 from invoice_agent.db.initialize import initialize_database
 from invoice_agent.routes.demo_company import create_demo_company_router
 from invoice_agent.routes.invoices import create_invoice_router
+from invoice_agent.services.daily_ai_limit import DailyAILimit
 from invoice_agent.services.demo_company import DemoCompanies
 from invoice_agent.services.erp_tools import ERPTools
 from invoice_agent.services.invoices import InvoiceProcessing
@@ -34,6 +35,7 @@ def create_app(
         url,
         reader=reader or configured_reader(),
         erp_tools=ERPTools(url),
+        daily_ai_limit=DailyAILimit(url),
     )
     queue = invoice_queue or InProcessInvoiceQueue(processing.process)
 

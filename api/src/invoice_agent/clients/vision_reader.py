@@ -16,13 +16,17 @@ class VisionInvoiceReader:
     provider: Literal["openai", "anthropic"]
     model: str
 
+    @property
+    def uses_live_model(self) -> bool:
+        return True
+
     def read(self, document: InvoiceFile) -> InvoiceFields | None:
         model: BaseChatModel
         if self.provider == "openai":
             from langchain_openai import ChatOpenAI
 
             model = ChatOpenAI(
-                model=self.model, timeout=45, max_retries=1, max_completion_tokens=4096
+                model=self.model, timeout=45, max_retries=0, max_completion_tokens=4096
             )
         else:
             from langchain_anthropic import ChatAnthropic
@@ -30,7 +34,7 @@ class VisionInvoiceReader:
             model = ChatAnthropic(
                 model_name=self.model,
                 timeout=45,
-                max_retries=1,
+                max_retries=0,
                 max_tokens_to_sample=4096,
                 stop=None,
             )

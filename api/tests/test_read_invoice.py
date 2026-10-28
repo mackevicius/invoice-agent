@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from invoice_agent.clients.invoice_reader import ScriptedInvoiceReader
 from invoice_agent.schemas.invoice_fields import InvoiceFields, InvoiceLine
 from invoice_agent.schemas.invoices import InvoiceFile
+from invoice_agent.services.daily_ai_limit import DailyAILimit
 from invoice_agent.services.erp_tools import ERPTools
 from invoice_agent.services.invoices import InvoiceProcessing
 
@@ -33,7 +34,10 @@ def test_read_fields_and_recorded_step(
         total=Decimal("45.38"),
     )
     processing = InvoiceProcessing(
-        database_url, reader=ScriptedInvoiceReader(fields), erp_tools=erp_tools
+        database_url,
+        reader=ScriptedInvoiceReader(fields),
+        erp_tools=erp_tools,
+        daily_ai_limit=DailyAILimit(database_url),
     )
     document = InvoiceFile(
         filename="invoice.png",
@@ -71,7 +75,10 @@ def test_unreadable_file_goes_in_review(
 ) -> None:
     company_id = UUID(client.post("/api/demo-company").json()["id"])
     processing = InvoiceProcessing(
-        database_url, reader=ScriptedInvoiceReader(None), erp_tools=erp_tools
+        database_url,
+        reader=ScriptedInvoiceReader(None),
+        erp_tools=erp_tools,
+        daily_ai_limit=DailyAILimit(database_url),
     )
     uploaded = processing.upload(
         company_id,
@@ -104,6 +111,7 @@ def test_model_failure_goes_in_review(
         database_url,
         reader=ScriptedInvoiceReader(RuntimeError("Model unavailable")),
         erp_tools=erp_tools,
+        daily_ai_limit=DailyAILimit(database_url),
     )
     uploaded = processing.upload(
         company_id,

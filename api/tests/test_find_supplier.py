@@ -10,6 +10,7 @@ from invoice_agent.clients.invoice_reader import ScriptedInvoiceReader
 from invoice_agent.schemas.erp_tools import Supplier
 from invoice_agent.schemas.invoice_fields import InvoiceFields, InvoiceLine
 from invoice_agent.schemas.invoices import InvoiceFile
+from invoice_agent.services.daily_ai_limit import DailyAILimit
 from invoice_agent.services.erp_tools import ERPTools
 from invoice_agent.services.invoices import InvoiceProcessing
 
@@ -56,6 +57,7 @@ def test_known_supplier_is_recorded(
             supplier_invoice_fields.model_copy(update={"supplier_name": supplier_name})
         ),
         erp_tools=erp_tools,
+        daily_ai_limit=DailyAILimit(database_url),
     )
     uploaded = processing.upload(
         company_id,
@@ -93,6 +95,7 @@ def test_unavailable_erp_goes_in_review(
         database_url,
         reader=ScriptedInvoiceReader(supplier_invoice_fields),
         erp_tools=UnavailableERPTools(database_url),
+        daily_ai_limit=DailyAILimit(database_url),
     )
     uploaded = processing.upload(
         company_id,
@@ -128,7 +131,10 @@ def test_unknown_supplier_stops_the_run(
     company_id = UUID(client.post("/api/demo-company").json()["id"])
     fields = supplier_invoice_fields.model_copy(update={"supplier_name": supplier_name})
     processing = InvoiceProcessing(
-        database_url, reader=ScriptedInvoiceReader(fields), erp_tools=erp_tools
+        database_url,
+        reader=ScriptedInvoiceReader(fields),
+        erp_tools=erp_tools,
+        daily_ai_limit=DailyAILimit(database_url),
     )
     uploaded = processing.upload(
         company_id,
@@ -177,6 +183,7 @@ def test_supplier_lookup_is_scoped_to_demo_company(
         database_url,
         reader=ScriptedInvoiceReader(supplier_invoice_fields),
         erp_tools=erp_tools,
+        daily_ai_limit=DailyAILimit(database_url),
     )
     document = InvoiceFile(
         filename="invoice.pdf",

@@ -17,8 +17,13 @@ def create_demo_company_router(
     def start_demo_company(
         response: Response,
         demo_company: Annotated[str | None, Cookie()] = None,
+        visitor_id: Annotated[str | None, Cookie()] = None,
     ) -> DemoCompany:
-        started = companies.start(demo_company)
+        try:
+            visitor = UUID(visitor_id) if visitor_id else None
+        except ValueError:
+            visitor = None
+        started = companies.start(demo_company, visitor)
         if started.new_token is not None:
             response.set_cookie(
                 "demo_company",
@@ -29,6 +34,14 @@ def create_demo_company_router(
                 secure=cookie_secure,
                 samesite="lax",
             )
+        response.set_cookie(
+            "visitor_id",
+            str(started.visitor_id),
+            max_age=172800,
+            httponly=True,
+            secure=cookie_secure,
+            samesite="lax",
+        )
         return started.company
 
     return router
