@@ -91,7 +91,7 @@
 }
 
 .viewTab:focus-visible,
-.roleSwitch select:focus-visible {
+.roleButton:focus-visible {
   outline: 2px solid #a0d2b4;
   outline-offset: -2px;
 }
@@ -108,29 +108,47 @@
   padding: 16px 24px;
 }
 
-.roleSwitch {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.roleSwitch label {
-  flex-shrink: 0;
+.roleLabel {
+  margin-bottom: 4px;
   color: #a7b7ad;
   font-size: 12px;
 }
 
-.roleSwitch select {
-  min-width: 0;
-  min-height: 36px;
-  flex: 1;
-  padding: 6px 8px;
-  border: 1px solid #49584f;
-  border-radius: 4px;
+.roleOptions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
   background: #252e28;
-  color: #eef4f0;
-  color-scheme: dark;
+}
+
+.roleButton {
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  color: #c4d3ca;
+  cursor: pointer;
   font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.roleButton:hover:not(:disabled) {
+  background: #303b34;
+  color: #eef4f0;
+}
+
+.roleButton[aria-pressed='true'],
+.roleButton[aria-pressed='true']:hover:not(:disabled) {
+  background: #eef4f0;
+  color: #191d1b;
+}
+
+.roleButton:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .uploadAction {
@@ -877,7 +895,7 @@
 @media (width <= 640px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(310px, 44dvh) minmax(0, 1fr);
+    grid-template-rows: minmax(360px, 48dvh) minmax(0, 1fr);
   }
   .sidebar {
     border-right: 0;
@@ -888,19 +906,7 @@
     padding: 16px 20px;
   }
   .sidebarControls {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-    gap: 12px;
     padding: 12px 20px;
-  }
-  .roleSwitch {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .uploadAction {
-    margin-top: 0;
   }
   .viewTabs {
     padding: 0 12px;

@@ -285,20 +285,28 @@ export function SplitView() {
         </header>
 
         <div className={styles.sidebarControls}>
-          <div className={styles.roleSwitch}>
-            <label htmlFor="viewing-as">Viewing as</label>
-            <select
-              id="viewing-as"
-              value={role}
-              onChange={(event) =>
-                changeRole(event.currentTarget.value as DemoRole)
-              }
-              disabled={busy}
+          <div>
+            <p id="viewing-as-label" className={styles.roleLabel}>
+              Viewing as
+            </p>
+            <div
+              role="group"
+              aria-labelledby="viewing-as-label"
+              className={styles.roleOptions}
             >
               {demoRoles.map((option) => (
-                <option key={option}>{option}</option>
+                <button
+                  key={option}
+                  type="button"
+                  className={styles.roleButton}
+                  aria-pressed={role === option}
+                  onClick={() => changeRole(option)}
+                  disabled={busy}
+                >
+                  {option}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
           <div className={styles.uploadAction}>
             <Button

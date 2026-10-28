@@ -13,6 +13,11 @@ test('a visitor selects an Invoice and returns to the same Demo Company', async 
   const sidebar = page.getByRole('complementary', { name: 'Invoices' });
   const detail = page.getByRole('main', { name: 'Invoice details' });
   await expect(sidebar.getByRole('button', { name: /INV-1042/ })).toBeVisible();
+  const roleSwitch = sidebar.getByRole('group', { name: 'Viewing as' });
+  await expect(roleSwitch.getByRole('button')).toHaveCount(3);
+  await expect(
+    roleSwitch.getByRole('button', { name: 'Submitter', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await expect(detail.getByRole('heading', { name: 'INV-1042' })).toBeVisible();
 
   const session = (await context.cookies()).find(
@@ -75,9 +80,10 @@ test('a Submitter uploads an unknown Supplier Invoice and a Reviewer approves it
   const detail = page.getByRole('main', { name: 'Invoice details' });
   await expect(sidebar.getByRole('button', { name: /INV-1042/ })).toBeVisible();
 
+  const roleSwitch = sidebar.getByRole('group', { name: 'Viewing as' });
   await expect(
-    sidebar.getByRole('combobox', { name: 'Viewing as' }),
-  ).toHaveValue('Submitter');
+    roleSwitch.getByRole('button', { name: 'Submitter', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await expect(sidebar.getByRole('tab', { name: /^Mine\b/ })).toHaveAttribute(
     'aria-selected',
     'true',
@@ -146,9 +152,9 @@ test('a Submitter uploads an unknown Supplier Invoice and a Reviewer approves it
     detail.getByRole('button', { name: 'Approve', exact: true }),
   ).toHaveCount(0);
 
-  await sidebar
-    .getByRole('combobox', { name: 'Viewing as' })
-    .selectOption('Reviewer');
+  await roleSwitch
+    .getByRole('button', { name: 'Reviewer', exact: true })
+    .click();
   await expect(
     sidebar.getByRole('tab', { name: /^Review Queue\b/ }),
   ).toHaveAttribute('aria-selected', 'true');
