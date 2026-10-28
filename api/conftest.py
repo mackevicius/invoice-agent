@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from datetime import date
+from decimal import Decimal
 from typing import TYPE_CHECKING
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import psycopg
 import pytest
@@ -12,6 +14,8 @@ from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
 if TYPE_CHECKING:
+    from invoice_agent.schemas.invoice_fields import InvoiceFields
+    from invoice_agent.schemas.invoices import InvoiceDetail
     from invoice_agent.services.erp_tools import ERPTools
 
 
@@ -20,6 +24,61 @@ def erp_tools(database_url: str) -> ERPTools:
     from invoice_agent.services.erp_tools import ERPTools
 
     return ERPTools(database_url)
+
+
+@pytest.fixture
+def matching_company(client: TestClient) -> UUID:
+    return UUID(client.post("/api/demo-company").json()["id"])
+
+
+@pytest.fixture
+def matching_fields() -> InvoiceFields:
+    from invoice_agent.schemas.invoice_fields import InvoiceFields, InvoiceLine
+
+    return InvoiceFields(
+        supplier_name="Paper & Co.",
+        invoice_number="INV-MATCH-42",
+        purchase_order_number="PO-1002",
+        issued_on=date(2026, 10, 20),
+        currency="EUR",
+        lines=[
+            InvoiceLine(
+                description="Recycled A4 paper, box",
+                quantity=Decimal("24"),
+                unit_price=Decimal("111.60"),
+            )
+        ],
+        subtotal=Decimal("2678.40"),
+        tax=Decimal("0"),
+        total=Decimal("2678.40"),
+    )
+
+
+@pytest.fixture
+def process_invoice(
+    matching_company: UUID, database_url: str, erp_tools: ERPTools
+) -> Callable[[InvoiceFields], InvoiceDetail]:
+    from invoice_agent.clients.invoice_reader import ScriptedInvoiceReader
+    from invoice_agent.schemas.invoices import InvoiceFile
+    from invoice_agent.services.invoices import InvoiceProcessing
+
+    def process(fields: InvoiceFields) -> InvoiceDetail:
+        processing = InvoiceProcessing(
+            database_url, reader=ScriptedInvoiceReader(fields), erp_tools=erp_tools
+        )
+        uploaded = processing.upload(
+            matching_company,
+            InvoiceFile(
+                filename="invoice.pdf",
+                content_type="application/pdf",
+                content=b"%PDF-1.4\nInvoice",
+            ),
+        )
+        result = processing.process(matching_company, uploaded.id)
+        assert processing.get(matching_company, uploaded.id) == result
+        return result
+
+    return process
 
 
 @pytest.fixture

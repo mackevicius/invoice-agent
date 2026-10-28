@@ -146,3 +146,164 @@ test('a visitor uploads an Invoice and watches an unknown Supplier stop the run'
     fullPage: true,
   });
 });
+
+test('Three-Way Match shows mismatches, savings, and every reason', async ({
+  page,
+}, testInfo) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const lines = [
+    {
+      item_code: 'PAPER-A4',
+      description: 'Recycled A4 paper, box',
+      quantity: '30',
+      unit_price: '120.00',
+    },
+    {
+      item_code: 'PAPER-A3',
+      description: 'Recycled A3 paper, box',
+      quantity: '6',
+      unit_price: '100.00',
+    },
+  ];
+  const purchaseLineId = '00000000-0000-4000-8000-000000000001';
+  const otherPurchaseLineId = '00000000-0000-4000-8000-000000000002';
+  const reasons = [
+    'Line 1 (Recycled A4 paper, box): unit price is more than 2% above the Purchase Order.',
+    'Line 1 (Recycled A4 paper, box): invoiced quantity does not equal received quantity.',
+  ];
+  await page.route('**/api/invoices/*', async (route) => {
+    const response = await route.fetch();
+    const original = await response.json();
+    await route.fulfill({
+      response,
+      json: {
+        ...original,
+        invoice_number: 'INV-MATCH-42',
+        supplier: 'Paper & Co.',
+        total: '4200.00',
+        status: 'In Review',
+        fields: {
+          supplier_name: 'Paper & Co.',
+          invoice_number: 'INV-MATCH-42',
+          purchase_order_number: 'PO-1002',
+          issued_on: '2026-10-20',
+          currency: 'EUR',
+          lines,
+          subtotal: '4200.00',
+          tax: '0.00',
+          total: '4200.00',
+        },
+        comparison: [
+          {
+            line_number: 1,
+            invoice: lines[0],
+            purchase_order: {
+              id: purchaseLineId,
+              item_code: 'PAPER-A4',
+              description: 'Recycled A4 paper, box',
+              quantity: '24',
+              unit_price: '111.60',
+            },
+            goods_receipt: {
+              purchase_order_line_id: purchaseLineId,
+              quantity: '24',
+            },
+            paired_by: 'item_code',
+            unit_price_difference: '8.40',
+            unit_price_difference_percent: '7.53',
+            price_passed: false,
+            quantity_passed: false,
+            mismatched_cells: [
+              'invoice.unit_price',
+              'purchase_order.unit_price',
+              'invoice.quantity',
+              'goods_receipt.quantity',
+            ],
+            reasons,
+          },
+          {
+            line_number: 2,
+            invoice: lines[1],
+            purchase_order: {
+              id: otherPurchaseLineId,
+              item_code: 'PAPER-A3',
+              description: 'Recycled A3 paper, box',
+              quantity: '24',
+              unit_price: '111.60',
+            },
+            goods_receipt: {
+              purchase_order_line_id: otherPurchaseLineId,
+              quantity: '6',
+            },
+            paired_by: 'item_code',
+            unit_price_difference: '-11.60',
+            unit_price_difference_percent: '-10.39',
+            price_passed: true,
+            quantity_passed: true,
+            mismatched_cells: [],
+            reasons: [],
+          },
+        ],
+        reasons,
+      },
+    });
+  });
+
+  await page.goto('/');
+
+  const detail = page.getByRole('main', { name: 'Invoice details' });
+  const comparison = detail.getByRole('region', { name: 'Three-Way Match' });
+  await expect(comparison).toBeVisible();
+  await expect(comparison.getByText('PO-1002', { exact: true })).toBeVisible();
+  const firstLine = comparison.getByRole('table', {
+    name: 'Line 1 comparison',
+  });
+  const secondLine = comparison.getByRole('table', {
+    name: 'Line 2 comparison',
+  });
+  await expect(firstLine).toBeVisible();
+  await expect(secondLine).toBeVisible();
+  const price = firstLine.getByRole('row', { name: /^Unit price/ });
+  await expect(price.getByRole('cell').nth(0)).toHaveAttribute(
+    'data-mismatch',
+    'true',
+  );
+  await expect(price.getByRole('cell').nth(0)).toHaveCSS(
+    'color',
+    'rgb(154, 60, 54)',
+  );
+  const quantities = firstLine.getByRole('row', { name: /^Quantity/ });
+  await expect(quantities.getByRole('cell').nth(0)).toHaveAttribute(
+    'data-mismatch',
+    'true',
+  );
+  await expect(secondLine.locator('[data-mismatch="true"]')).toHaveCount(0);
+  await expect(secondLine.getByText(/-.*11\.60/)).toBeVisible();
+  await expect(secondLine.getByText('-10.39%')).toBeVisible();
+  const review = detail.getByRole('region', { name: 'Review reasons' });
+  await expect(review.getByRole('listitem')).toHaveText(reasons);
+  const lastTableBounds = await secondLine.boundingBox();
+  const reasonBounds = await review.boundingBox();
+  if (lastTableBounds === null || reasonBounds === null) {
+    throw new Error(
+      'The comparison grid and review reasons must both be visible.',
+    );
+  }
+  expect(reasonBounds.y).toBeGreaterThanOrEqual(
+    lastTableBounds.y + lastTableBounds.height,
+  );
+  const layout = await page.evaluate(() => ({
+    page: document.documentElement.scrollWidth,
+    viewport: document.documentElement.clientWidth,
+  }));
+  expect(layout.page, JSON.stringify(layout)).toBeLessThanOrEqual(
+    layout.viewport,
+  );
+  expect(errors).toEqual([]);
+  await firstLine.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: testInfo.outputPath('three-way-match.png'),
+    fullPage: true,
+  });
+});

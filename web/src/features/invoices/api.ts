@@ -2,6 +2,13 @@ import { z } from 'zod';
 import { request } from '@/lib/api';
 
 const decimalSchema = z.string().regex(/^\d+(?:\.\d+)?$/);
+const signedDecimalSchema = z.string().regex(/^-?\d+(?:\.\d+)?$/);
+const invoiceLineSchema = z.object({
+  description: z.string(),
+  item_code: z.string().nullable(),
+  quantity: decimalSchema,
+  unit_price: decimalSchema,
+});
 
 const invoiceHeaderSchema = z.object({
   id: z.uuid(),
@@ -25,20 +32,45 @@ const invoiceDetailSchema = invoiceHeaderSchema.extend({
     .object({
       supplier_name: z.string(),
       invoice_number: z.string(),
+      purchase_order_number: z.string().nullable(),
       issued_on: z.iso.date(),
       currency: z.string(),
-      lines: z.array(
-        z.object({
-          description: z.string(),
-          quantity: decimalSchema,
-          unit_price: decimalSchema,
-        }),
-      ),
+      lines: z.array(invoiceLineSchema),
       subtotal: decimalSchema,
       tax: decimalSchema,
       total: decimalSchema,
     })
     .nullable(),
+  comparison: z.array(
+    z.object({
+      line_number: z.number().int().positive(),
+      invoice: invoiceLineSchema,
+      purchase_order: invoiceLineSchema.extend({ id: z.uuid() }).nullable(),
+      goods_receipt: z
+        .object({
+          purchase_order_line_id: z.uuid(),
+          quantity: decimalSchema,
+        })
+        .nullable(),
+      paired_by: z.enum(['item_code', 'description']).nullable(),
+      unit_price_difference: signedDecimalSchema.nullable(),
+      unit_price_difference_percent: signedDecimalSchema.nullable(),
+      price_passed: z.boolean(),
+      quantity_passed: z.boolean(),
+      mismatched_cells: z.array(
+        z.enum([
+          'invoice.description',
+          'invoice.quantity',
+          'invoice.unit_price',
+          'purchase_order.description',
+          'purchase_order.quantity',
+          'purchase_order.unit_price',
+          'goods_receipt.quantity',
+        ]),
+      ),
+      reasons: z.array(z.string()),
+    }),
+  ),
   reasons: z.array(z.string()),
   steps: z.array(
     z.object({
@@ -54,6 +86,7 @@ const invoiceDetailSchema = invoiceHeaderSchema.extend({
 
 export type InvoiceHeader = z.infer<typeof invoiceHeaderSchema>;
 export type InvoiceDetail = z.infer<typeof invoiceDetailSchema>;
+export type LineComparison = InvoiceDetail['comparison'][number];
 
 export function money(
   invoice: Pick<InvoiceHeader, 'total' | 'currency'>,

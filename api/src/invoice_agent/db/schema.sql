@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS purchase_order_lines (
     id UUID PRIMARY KEY,
     company_id UUID NOT NULL REFERENCES demo_companies(id) ON DELETE CASCADE,
     purchase_order_id UUID NOT NULL,
+    item_code TEXT,
     description TEXT NOT NULL,
     quantity NUMERIC(12, 3) NOT NULL CHECK (quantity > 0),
     unit_price NUMERIC(14, 2) NOT NULL CHECK (unit_price >= 0),
@@ -40,6 +41,8 @@ CREATE TABLE IF NOT EXISTS purchase_order_lines (
     FOREIGN KEY (company_id, purchase_order_id)
         REFERENCES purchase_orders(company_id, id)
 );
+
+ALTER TABLE purchase_order_lines ADD COLUMN IF NOT EXISTS item_code TEXT;
 
 CREATE TABLE IF NOT EXISTS goods_receipts (
     id UUID PRIMARY KEY,
@@ -91,7 +94,8 @@ ALTER TABLE invoices
     ADD COLUMN IF NOT EXISTS content_type TEXT,
     ADD COLUMN IF NOT EXISTS file_content BYTEA,
     ADD COLUMN IF NOT EXISTS read_fields JSONB,
-    ADD COLUMN IF NOT EXISTS reasons JSONB NOT NULL DEFAULT '[]';
+    ADD COLUMN IF NOT EXISTS reasons JSONB NOT NULL DEFAULT '[]',
+    ADD COLUMN IF NOT EXISTS comparison JSONB NOT NULL DEFAULT '[]';
 
 ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_currency_check;
 ALTER TABLE invoices ADD CONSTRAINT invoices_currency_check
@@ -125,8 +129,11 @@ CREATE TABLE IF NOT EXISTS invoice_lines (
     id UUID PRIMARY KEY,
     company_id UUID NOT NULL REFERENCES demo_companies(id) ON DELETE CASCADE,
     invoice_id UUID NOT NULL,
+    item_code TEXT,
     description TEXT NOT NULL,
     quantity NUMERIC(12, 3) NOT NULL CHECK (quantity > 0),
     unit_price NUMERIC(14, 2) NOT NULL CHECK (unit_price >= 0),
     FOREIGN KEY (company_id, invoice_id) REFERENCES invoices(company_id, id)
 );
+
+ALTER TABLE invoice_lines ADD COLUMN IF NOT EXISTS item_code TEXT;

@@ -2,10 +2,10 @@
 
 Checks supplier Invoices against Purchase Orders and Goods Receipts.
 Visitors get a private, seeded Demo Company and can upload an Invoice to watch
-its fields being read and its Supplier looked up in the Split view. No model
-calls are needed to browse the samples. Three-Way Match and the other checks
-are later work; uploaded Invoices currently finish In Review and are never
-Auto-Approved.
+its fields being read, its Supplier looked up, and its Three-Way Match in the
+Split view. No model calls are needed to browse the samples. Uploaded Invoices
+finish In Review with every failed check listed, or **All checks passed** until
+Auto-Approval is implemented. Duplicate Invoice checks are later work.
 
 ## Run Locally
 
@@ -91,11 +91,38 @@ ambiguous name sends the Invoice In Review with the reason **Unknown Supplier**.
 An unavailable tool records a failed lookup and a separate review reason.
 In both cases, later steps are marked Skipped.
 
-For a known Supplier, later steps are also Skipped for now, with a reason that
-Purchase Order and Goods Receipt checks are still required. The default fake
-Invoice names Baltic Office Supplies, which is not seeded, so it demonstrates
-the unknown-Supplier path. Use a seeded name such as Paper & Co. in an alternate
-fake response to see a known match.
+For a known Supplier, `ERPTools.get_purchase_order` fetches the Purchase Order
+number printed on the Invoice, scoped to that Supplier and Demo Company.
+`ERPTools.get_goods_receipt` fetches its Goods Receipts and totals received
+quantities per Purchase Order line. A missing Purchase Order or unavailable
+Purchase Order lookup sends the Invoice In Review and skips dependent steps.
+When a Goods Receipt is missing or unavailable, available Purchase Order checks
+still run so their failures are listed alongside the missing-receipt reason.
+
+## Three-Way Match
+
+Invoice reading captures the printed Purchase Order number and optional item
+codes. Deterministic code pairs lines by a unique identical item code or an
+identical description. Conflicting codes, ambiguous matches and unpaired lines
+require review; a Purchase Order line cannot be reused by another Invoice line.
+
+- A unit price up to 2% above the Purchase Order passes; a lower price passes
+  too. The grid retains the signed amount and percentage difference.
+- Invoiced quantity must equal received quantity, and received quantity must
+  not exceed ordered quantity. Partial deliveries pass.
+- Each line has one Invoice / Purchase Order / Goods Receipt comparison table.
+  Mismatched cells are red, and every review reason appears below the tables.
+
+The model only reads the Invoice; it does not compute pass/fail or decide the
+Invoice Status. Successful checks still finish In Review with **All checks
+passed**. Check Duplicates remains explicitly Skipped until that feature exists.
+
+The default fake Invoice names Baltic Office Supplies, which is not seeded,
+so it demonstrates the unknown-Supplier path. An alternate fake response can
+exercise a passing Three-Way Match with Supplier **Paper & Co.**, Purchase Order
+**PO-1002**, and description **Recycled A4 paper, box**, quantity **24**, unit
+price **111.60**. Use `purchase_order_number` on the Invoice and optional
+`item_code` on each line in the JSON response.
 
 ## Checks and Tests
 
@@ -104,6 +131,8 @@ test. They exercise the HTTP API and the public Process an Invoice interface
 with a scripted model, not internal database functions or paid providers.
 Supplier tests use the real ERP tables, including name variations,
 unknown Suppliers, ERP failures and isolation between Demo Companies.
+Three-Way Match tests use the same public interface, with separate files for
+Price Tolerance, quantities, missing records and simple line pairing.
 
 ```sh
 docker compose run --rm api uv run --locked pytest
@@ -126,7 +155,10 @@ PLAYWRIGHT_BASE_URL=http://localhost:3000 npm test
 ```
 
 The browser tests cover Invoice selection, Demo Company persistence and expiry,
-and upload through the real API and worker on desktop and mobile. CI runs Python
+upload through the real API and worker, and the comparison grid's mismatch
+colors, lower-price differences and mobile layout. The grid rendering check
+uses a fixed HTTP response; processing rules are tested against real Postgres.
+CI runs Python
 lint, formatting, types and tests, then web types, lint, a production build, and
 the browser tests against that production build. CI uses the scripted model;
 no cloud credentials or paid services are required.

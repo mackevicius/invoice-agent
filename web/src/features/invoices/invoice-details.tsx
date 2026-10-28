@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
   Check,
   Circle,
@@ -6,7 +7,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { money, type InvoiceDetail } from './api';
+import { money, type InvoiceDetail, type LineComparison } from './api';
 import styles from './split-view.module.css';
 
 export const statusClass: Record<InvoiceDetail['status'], string> = {
@@ -16,6 +17,134 @@ export const statusClass: Record<InvoiceDetail['status'], string> = {
   Approved: styles.approved,
   Rejected: styles.rejected,
 };
+
+function ComparisonCell({
+  line,
+  field,
+  children,
+}: {
+  line: LineComparison;
+  field: LineComparison['mismatched_cells'][number];
+  children: ReactNode;
+}) {
+  const mismatched = line.mismatched_cells.includes(field);
+  return (
+    <td data-mismatch={mismatched}>
+      {mismatched && <span className="sr-only">Mismatch: </span>}
+      {children}
+    </td>
+  );
+}
+
+function ComparisonLine({
+  line,
+  currency,
+}: {
+  line: LineComparison;
+  currency: string;
+}) {
+  const passed = line.price_passed && line.quantity_passed;
+  const Icon = passed ? Check : TriangleAlert;
+  const quantity = (value: string | undefined) =>
+    value === undefined
+      ? '-'
+      : new Intl.NumberFormat('en-IE', { maximumFractionDigits: 3 }).format(
+          Number(value),
+        );
+  return (
+    <div
+      className={styles.linesScroll}
+      role="region"
+      aria-label={`Line ${line.line_number} comparison scroll area`}
+      tabIndex={0}
+    >
+      <table aria-label={`Line ${line.line_number} comparison`}>
+        <caption>
+          <div className={styles.comparisonCaption}>
+            <span>Line {line.line_number}</span>
+            <span className={passed ? styles.linePassed : styles.lineFailed}>
+              <Icon size={14} aria-hidden="true" />
+              {passed ? 'Passed' : 'Mismatch'}
+            </span>
+          </div>
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Field</th>
+            <th scope="col">Invoice</th>
+            <th scope="col">Purchase Order</th>
+            <th scope="col">Goods Receipt</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Item</th>
+            <ComparisonCell line={line} field="invoice.description">
+              {line.invoice.description}
+              {line.invoice.item_code && (
+                <span className={styles.itemCode}>
+                  {line.invoice.item_code}
+                </span>
+              )}
+            </ComparisonCell>
+            <ComparisonCell line={line} field="purchase_order.description">
+              {line.purchase_order?.description ?? 'Not paired'}
+              {line.purchase_order?.item_code && (
+                <span className={styles.itemCode}>
+                  {line.purchase_order.item_code}
+                </span>
+              )}
+            </ComparisonCell>
+            <td>
+              {line.goods_receipt
+                ? line.purchase_order?.description
+                : 'Not received'}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Quantity</th>
+            <ComparisonCell line={line} field="invoice.quantity">
+              {quantity(line.invoice.quantity)}
+            </ComparisonCell>
+            <ComparisonCell line={line} field="purchase_order.quantity">
+              {quantity(line.purchase_order?.quantity)}
+            </ComparisonCell>
+            <ComparisonCell line={line} field="goods_receipt.quantity">
+              {quantity(line.goods_receipt?.quantity)}
+            </ComparisonCell>
+          </tr>
+          <tr>
+            <th scope="row">Unit price</th>
+            <ComparisonCell line={line} field="invoice.unit_price">
+              {money({ total: line.invoice.unit_price, currency })}
+            </ComparisonCell>
+            <ComparisonCell line={line} field="purchase_order.unit_price">
+              {money({
+                total: line.purchase_order?.unit_price ?? null,
+                currency,
+              })}
+            </ComparisonCell>
+            <td>-</td>
+          </tr>
+          <tr>
+            <th scope="row">Price difference</th>
+            <td>
+              {money({ total: line.unit_price_difference, currency })}
+              {line.unit_price_difference_percent !== null && (
+                <span className={styles.priceDifference}>
+                  {Number(line.unit_price_difference_percent) > 0 ? '+' : ''}
+                  {line.unit_price_difference_percent}%
+                </span>
+              )}
+            </td>
+            <td>-</td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export function InvoiceDetails({ invoice }: { invoice: InvoiceDetail }) {
   return (
@@ -110,34 +239,60 @@ export function InvoiceDetails({ invoice }: { invoice: InvoiceDetail }) {
       </dl>
 
       {invoice.fields && (
-        <section className={styles.readFields} aria-label="Read fields">
-          <h2>Read fields</h2>
-          <div className={styles.linesScroll}>
-            <table>
-              <caption className="sr-only">Invoice lines</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Description</th>
-                  <th scope="col">Quantity</th>
-                  <th scope="col">Unit price</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoice.fields.lines.map((line, index) => (
-                  <tr key={index}>
-                    <td>{line.description}</td>
-                    <td>{line.quantity}</td>
-                    <td>
-                      {money({
-                        total: line.unit_price,
-                        currency: invoice.currency,
-                      })}
-                    </td>
+        <section
+          className={
+            invoice.comparison.length > 0
+              ? styles.comparison
+              : styles.readFields
+          }
+          aria-label={
+            invoice.comparison.length > 0 ? 'Three-Way Match' : 'Read fields'
+          }
+        >
+          <h2>
+            {invoice.comparison.length > 0 ? 'Three-Way Match' : 'Read fields'}
+          </h2>
+          {invoice.fields.purchase_order_number && (
+            <p className={styles.purchaseOrder}>
+              Purchase Order <span>{invoice.fields.purchase_order_number}</span>
+            </p>
+          )}
+          {invoice.comparison.length > 0 ? (
+            invoice.comparison.map((line) => (
+              <ComparisonLine
+                key={line.line_number}
+                line={line}
+                currency={invoice.currency}
+              />
+            ))
+          ) : (
+            <div className={styles.linesScroll}>
+              <table>
+                <caption className="sr-only">Invoice lines</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Description</th>
+                    <th scope="col">Quantity</th>
+                    <th scope="col">Unit price</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {invoice.fields.lines.map((line, index) => (
+                    <tr key={index}>
+                      <td>{line.description}</td>
+                      <td>{line.quantity}</td>
+                      <td>
+                        {money({
+                          total: line.unit_price,
+                          currency: invoice.currency,
+                        })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           <dl className={styles.readTotals}>
             <div>
               <dt>Subtotal</dt>

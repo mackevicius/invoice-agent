@@ -61,7 +61,9 @@ class VisionInvoiceReader:
                         "fields cannot be read. Do not invent values. Use the printed "
                         "Invoice date, ISO currency code, line quantities and unit "
                         "prices, subtotal, tax and total. Tax is zero when no tax "
-                        "is charged. Never make an approval decision."
+                        "is charged. Copy the Purchase Order number and item codes "
+                        "when printed; otherwise leave them null. "
+                        "Never make an approval decision."
                     ),
                     message,
                 ]

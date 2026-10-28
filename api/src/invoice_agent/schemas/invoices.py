@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, JsonValue
 
 from invoice_agent.schemas.invoice_fields import InvoiceFields
+from invoice_agent.schemas.three_way_match import LineComparison
 
 
 @dataclass(frozen=True)
@@ -38,5 +39,6 @@ class InvoiceStep(BaseModel):
 class InvoiceDetail(InvoiceHeader):
     filename: str | None
     fields: InvoiceFields | None
+    comparison: list[LineComparison] = Field(default_factory=list)
     reasons: list[str] = Field(default_factory=list)
     steps: list[InvoiceStep] = Field(default_factory=list)
