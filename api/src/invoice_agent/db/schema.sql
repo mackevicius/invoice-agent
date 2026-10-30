@@ -47,13 +47,17 @@ CREATE TABLE IF NOT EXISTS purchase_order_lines (
     description TEXT NOT NULL,
     quantity NUMERIC(12, 3) NOT NULL CHECK (quantity > 0),
     unit_price NUMERIC(14, 2) NOT NULL CHECK (unit_price >= 0),
-    embedding vector(1536),
+    embedding vector(384),
+    embedding_model TEXT,
     UNIQUE (company_id, id),
     FOREIGN KEY (company_id, purchase_order_id)
         REFERENCES purchase_orders(company_id, id)
 );
 
 ALTER TABLE purchase_order_lines ADD COLUMN IF NOT EXISTS item_code TEXT;
+ALTER TABLE purchase_order_lines ADD COLUMN IF NOT EXISTS embedding_model TEXT;
+ALTER TABLE purchase_order_lines ALTER COLUMN embedding TYPE vector(384)
+    USING CASE WHEN vector_dims(embedding) = 384 THEN embedding ELSE NULL END;
 
 CREATE TABLE IF NOT EXISTS goods_receipts (
     id UUID PRIMARY KEY,

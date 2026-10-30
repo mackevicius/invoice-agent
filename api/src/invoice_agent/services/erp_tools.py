@@ -4,17 +4,43 @@ from uuid import UUID
 import psycopg
 from psycopg.rows import dict_row
 
+from invoice_agent.clients.embeddings import TextEmbeddings
 from invoice_agent.schemas.erp_tools import (
     EarlierInvoice,
     GoodsReceipt,
     PurchaseOrder,
+    PurchaseOrderLine,
     Supplier,
 )
 
 
 class ERPTools:
-    def __init__(self, database_url: str) -> None:
+    def __init__(
+        self, database_url: str, embeddings: TextEmbeddings | None = None
+    ) -> None:
         self.database_url = database_url
+        self.embeddings = embeddings
+
+    def index_purchase_order_lines(self) -> None:
+        if self.embeddings is None:
+            return
+        with psycopg.connect(self.database_url) as connection:
+            lines = connection.execute(
+                """SELECT id, company_id, description FROM purchase_order_lines
+                   WHERE embedding IS NULL OR embedding_model IS DISTINCT FROM %s
+                   ORDER BY id""",
+                (self.embeddings.model_name,),
+            ).fetchall()
+            if not lines:
+                return
+            vectors = self.embeddings.embed([str(line[2]) for line in lines])
+            for line, vector in zip(lines, vectors, strict=True):
+                connection.execute(
+                    """UPDATE purchase_order_lines SET embedding = %s::vector,
+                                        embedding_model = %s
+                       WHERE id = %s AND company_id = %s""",
+                    (vector, self.embeddings.model_name, line[0], line[1]),
+                )
 
     def find_supplier(self, company_id: UUID, name: str) -> Supplier | None:
         key = _supplier_key(name)
@@ -72,6 +98,44 @@ class ERPTools:
                 (company_id, purchase_order["id"]),
             ).fetchall()
         return PurchaseOrder.model_validate({**purchase_order, "lines": lines})
+
+    def search_purchase_order_lines(
+        self,
+        company_id: UUID,
+        purchase_order_id: UUID,
+        description: str,
+        *,
+        item_code: str | None = None,
+        excluded_ids: tuple[UUID, ...] = (),
+    ) -> list[PurchaseOrderLine]:
+        if self.embeddings is None:
+            raise RuntimeError("Purchase Order line embeddings are not configured.")
+        vector = self.embeddings.embed([description])[0]
+        with psycopg.connect(self.database_url, row_factory=dict_row) as connection:
+            lines = connection.execute(
+                """SELECT line.id, line.item_code, line.description,
+                          line.quantity, line.unit_price
+                   FROM purchase_order_lines AS line
+                   JOIN demo_companies AS company ON company.id = line.company_id
+                   WHERE line.company_id = %s AND line.purchase_order_id = %s
+                     AND company.expires_at > %s AND line.embedding IS NOT NULL
+                                         AND line.embedding_model = %s
+                     AND NOT (line.id = ANY(%s::uuid[]))
+                     AND (%s::text IS NULL OR line.item_code IS NULL
+                          OR line.item_code = %s)
+                   ORDER BY line.embedding <=> %s::vector, line.id LIMIT 5""",
+                (
+                    company_id,
+                    purchase_order_id,
+                    datetime.now(UTC),
+                    self.embeddings.model_name,
+                    list(excluded_ids),
+                    item_code,
+                    item_code,
+                    vector,
+                ),
+            ).fetchall()
+        return [PurchaseOrderLine.model_validate(line) for line in lines]
 
     def get_goods_receipt(
         self, company_id: UUID, purchase_order_id: UUID

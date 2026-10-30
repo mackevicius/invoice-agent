@@ -1,7 +1,20 @@
 import os
 from pathlib import Path
 
+from pydantic import TypeAdapter
+
+from invoice_agent.clients.chat_model import configured_live_model
+from invoice_agent.clients.embeddings import (
+    LocalEmbeddings,
+    ScriptedEmbeddings,
+    TextEmbeddings,
+)
 from invoice_agent.clients.invoice_reader import InvoiceReader, ScriptedInvoiceReader
+from invoice_agent.clients.line_pairing import (
+    LinePairer,
+    ModelLinePairer,
+    ScriptedLinePairer,
+)
 from invoice_agent.clients.vision_reader import VisionInvoiceReader
 from invoice_agent.schemas.invoice_fields import InvoiceReadResult
 
@@ -18,13 +31,22 @@ def configured_reader() -> InvoiceReader:
             else None
         )
         return ScriptedInvoiceReader(fields)
-    if provider == "openai":
-        return VisionInvoiceReader(
-            provider="openai", model=os.environ.get("INVOICE_MODEL") or "gpt-4.1-mini"
+    live_provider, model = configured_live_model()
+    return VisionInvoiceReader(provider=live_provider, model=model)
+
+
+def configured_embeddings() -> TextEmbeddings:
+    if os.environ.get("INVOICE_MODEL_PROVIDER", "openai").lower() == "fake":
+        return ScriptedEmbeddings()
+    return LocalEmbeddings()
+
+
+def configured_line_pairer() -> LinePairer:
+    provider = os.environ.get("INVOICE_MODEL_PROVIDER", "openai").lower()
+    if provider == "fake":
+        choices = TypeAdapter(dict[str, str | None]).validate_json(
+            os.environ.get("INVOICE_FAKE_LINE_CHOICES") or "{}"
         )
-    if provider == "anthropic":
-        return VisionInvoiceReader(
-            provider="anthropic",
-            model=os.environ.get("INVOICE_MODEL") or "claude-haiku-4-5-20251001",
-        )
-    raise ValueError("INVOICE_MODEL_PROVIDER must be openai, anthropic, or fake.")
+        return ScriptedLinePairer(choices)
+    live_provider, model = configured_live_model()
+    return ModelLinePairer(provider=live_provider, model=model)

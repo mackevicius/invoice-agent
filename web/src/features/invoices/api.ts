@@ -69,7 +69,7 @@ const invoiceDetailSchema = invoiceHeaderSchema.extend({
           quantity: decimalSchema,
         })
         .nullable(),
-      paired_by: z.enum(['item_code', 'description']).nullable(),
+      paired_by: z.enum(['item_code', 'description', 'meaning']).nullable(),
       unit_price_difference: signedDecimalSchema.nullable(),
       unit_price_difference_percent: signedDecimalSchema.nullable(),
       price_passed: z.boolean(),

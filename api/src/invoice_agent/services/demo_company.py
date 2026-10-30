@@ -7,7 +7,8 @@ from uuid import UUID, uuid4
 import psycopg
 from psycopg.rows import dict_row
 
-from invoice_agent.db.seed import seed_demo_company
+from invoice_agent.clients.embeddings import TextEmbeddings
+from invoice_agent.db.seed import SAMPLES, seed_demo_company
 from invoice_agent.schemas.demo_company import DemoCompany
 
 
@@ -21,6 +22,7 @@ class StartedDemoCompany:
 @dataclass(frozen=True)
 class DemoCompanies:
     database_url: str
+    embeddings: TextEmbeddings | None = None
 
     def start(
         self, token: str | None, visitor_id: UUID | None = None
@@ -58,7 +60,18 @@ class DemoCompanies:
                     company.expires_at,
                 ),
             )
-            seed_demo_company(connection, company.id, now)
+            vectors = (
+                self.embeddings.embed([sample[4] for sample in SAMPLES])
+                if self.embeddings is not None
+                else None
+            )
+            seed_demo_company(
+                connection,
+                company.id,
+                now,
+                vectors,
+                self.embeddings.model_name if self.embeddings is not None else None,
+            )
         return StartedDemoCompany(company, new_token, visitor_id)
 
     def identify(self, token: str | None) -> UUID | None:

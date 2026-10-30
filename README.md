@@ -110,25 +110,28 @@ omitting it selects Submitter. The Demo Company cookie is still required.
 
 ## Daily AI Limits
 
-Live Invoice reads default to **5 per visitor** and **100 across all visitors**
-per UTC calendar day. Override the limits with non-negative integers when
-starting the API:
+Live model requests default to **5 per visitor** and **100 across all visitors**
+per UTC calendar day. Each Invoice read and each semantic line choice consumes
+one request. Local embeddings, exact line matches, and scripted choices are free.
+Override the limits with non-negative integers when starting the API:
 
 ```sh
 INVOICE_AI_DAILY_VISITOR_LIMIT=3 INVOICE_AI_DAILY_GLOBAL_LIMIT=50 docker compose up --build
 ```
 
-At either limit, no model is called. The Invoice finishes In Review with the
-reason **daily AI limit reached**, and later steps are Skipped. Setting either
-limit to `0` disables live reads. Scripted reads and seeded sample Invoices do
-not consume the allowance and remain available after the limit is reached.
+At either limit, the next live request is blocked. The Invoice finishes In Review
+with the reason **daily AI limit reached**. If reading is blocked, later steps
+are Skipped. If pairing is blocked, available deterministic checks and Duplicate
+Invoice checks still run. Setting either limit to `0` disables live requests.
+Scripted reads and choices and seeded sample Invoices do not consume the allowance
+and remain available after the limit is reached.
 
 A separate HttpOnly visitor cookie preserves the allowance across Demo Company
 renewals. It lasts two days and does not grant access to Invoice data; the Demo
 Company session cookie still expires after 24 hours. Clearing cookies creates a
 new anonymous visitor, but does not reset the global allowance.
 
-Usage is reserved in Postgres before the live call, including attempts that fail
+Usage is reserved in Postgres before each live call, including attempts that fail
 or return an unreadable result. Reservations are atomic across workers and
 survive API restarts. Provider SDK retries are disabled, so one reservation sends
 at most one request. Counts start again at midnight UTC without a scheduled reset.
@@ -155,12 +158,29 @@ Purchase Order lookup sends the Invoice In Review and skips dependent steps.
 When a Goods Receipt is missing or unavailable, available Purchase Order checks
 still run so their failures are listed alongside the missing-receipt reason.
 
+`ERPTools.search_purchase_order_lines` retrieves up to five candidates by cosine
+distance in pgvector, scoped to the same Demo Company and named Purchase Order.
+Already paired lines and conflicting item codes are excluded. This remains a
+plain service, not an MCP server, following ADR 0002.
+
+Purchase Order lines receive 384-dimensional embeddings when the Demo Company
+is seeded. FastEmbed runs `sentence-transformers/all-MiniLM-L6-v2` locally on the
+CPU, with no paid embedding API. The Docker build downloads and caches the model;
+the first non-Docker run needs network access to download it. Startup backfills
+existing lines and rebuilds vectors when the configured embedding model changes.
+Vectors carry their model name, so fake and real vectors are never mixed in a
+search.
+
 ## Three-Way Match
 
 Invoice reading captures the printed Purchase Order number and optional item
 codes. Deterministic code pairs lines by a unique identical item code or an
-identical description. Conflicting codes, ambiguous matches and unpaired lines
-require review; a Purchase Order line cannot be reused by another Invoice line.
+identical description first. For unresolved lines, the model chooses a candidate
+by meaning, or chooses none if no candidate fits. A choice outside the supplied
+candidates is ignored. Conflicting codes, unresolved ambiguity and unpaired lines
+require review; a Purchase Order line cannot be reused by another Invoice line,
+and semantic choices cannot take lines reserved by exact matches. Search or model
+failures leave the line unpaired with a clear review reason.
 
 - A unit price up to 2% above the Purchase Order passes; a lower price passes
   too. The grid retains the signed amount and percentage difference.
@@ -169,10 +189,19 @@ require review; a Purchase Order line cannot be reused by another Invoice line.
 - Each line has one Invoice / Purchase Order / Goods Receipt comparison table.
   Mismatched cells are red, and every review reason appears below the tables.
 
-The model only reads the Invoice; it does not compute pass/fail or decide the
-Invoice Status. Successful checks still finish In Review with **All checks
-passed**. Duplicate checks run even when matching fails or the Purchase Order
-is missing.
+The model reads the Invoice and chooses line pairs; it does not compute pass/fail
+or decide the Invoice Status. The Pair Lines step saves the candidates and chosen
+pairs. The grid retains the original Invoice description beside the chosen
+Purchase Order description. Successful checks still finish In Review with
+**All checks passed**. Duplicate checks run even when matching fails or the
+Purchase Order is missing.
+
+In fake mode, semantic choices default to none. Set `INVOICE_FAKE_LINE_CHOICES`
+to a JSON object mapping Invoice descriptions to chosen Purchase Order
+descriptions, for example
+`{"A4 recycled paper in boxes":"Recycled A4 paper, box"}`. A null value means
+no candidate fits. Fake mode uses scripted embeddings and never downloads a model
+or contacts a paid provider.
 
 The default fake Invoice names Baltic Office Supplies, which is not seeded,
 so it demonstrates the unknown-Supplier path. An alternate fake response can
@@ -204,12 +233,16 @@ with a scripted model, not internal database functions or paid providers.
 Supplier tests use the real ERP tables, including name variations,
 unknown Suppliers, ERP failures and isolation between Demo Companies.
 Three-Way Match tests use the same public interface, with separate files for
-Price Tolerance, quantities, missing records and simple line pairing.
+Price Tolerance, quantities, missing records and line pairing. Semantic pairing
+tests use scripted embeddings and model choices with real pgvector search. They
+cover ranked candidates, refused and invalid choices, exact-match priority,
+Company/Purchase Order isolation, failures, and embedding model changes.
 Duplicate Invoice tests cover both rules, the 30-day boundary, combined failure
 reasons, history failures, saved record links, and Company/Supplier isolation.
 Daily AI limit tests cover both caps, concurrent workers, Demo Company renewal,
 midnight UTC reset, zero limits, and scripted reads. The live SDK retry checks
-use a local HTTP endpoint; no paid provider is contacted.
+use a local HTTP endpoint for both Invoice reading and line pairing; no paid
+provider is contacted.
 Role and Review Queue tests exercise permissions, uploader tracking, final
 decisions, required Rejection Reasons, view filters, and counts through the
 HTTP API.
@@ -237,7 +270,8 @@ PLAYWRIGHT_BASE_URL=http://localhost:3000 npm test
 The browser tests cover Invoice selection, Demo Company persistence and expiry,
 upload through the real API and worker, switching from Submitter to Reviewer
 and approving from the Review Queue, links to earlier Invoices, and the comparison grid's mismatch
-colors, lower-price differences and mobile layout. The grid rendering check
+colors, lower-price differences, differently worded paired descriptions and
+mobile layout. The grid rendering check
 uses a fixed HTTP response; processing rules are tested against real Postgres.
 CI runs Python
 lint, formatting, types and tests, then web types, lint, a production build, and

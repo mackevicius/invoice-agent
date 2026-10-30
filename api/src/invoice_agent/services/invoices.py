@@ -11,6 +11,7 @@ from psycopg.types.json import Jsonb
 from pydantic import JsonValue
 
 from invoice_agent.clients.invoice_reader import InvoiceReader
+from invoice_agent.clients.line_pairing import LinePairer
 from invoice_agent.schemas.demo_company import DemoPerson
 from invoice_agent.schemas.erp_tools import GoodsReceipt, PurchaseOrder, Supplier
 from invoice_agent.schemas.invoices import (
@@ -91,11 +92,13 @@ class InvoiceProcessing:
         reader: InvoiceReader,
         erp_tools: ERPTools,
         daily_ai_limit: DailyAILimit,
+        line_pairer: LinePairer | None = None,
     ) -> None:
         self.database_url = database_url
         self.reader = reader
         self.erp_tools = erp_tools
         self.daily_ai_limit = daily_ai_limit
+        self.line_pairer = line_pairer
         graph = StateGraph(InvoiceRun)
         graph.add_node("read_invoice", self._read_invoice)
         graph.add_node("find_supplier", self._find_supplier)
@@ -603,13 +606,78 @@ class InvoiceProcessing:
         ):
             return state
         pairs = pair_lines(invoice.fields.lines, purchase_order)
+        used = {pair.purchase_order.id for pair in pairs if pair.purchase_order}
+        searches: list[JsonValue] = []
+        pairing_reasons: list[str] = []
+        failed = False
+        for pair in pairs:
+            if pair.purchase_order is not None or self.line_pairer is None:
+                continue
+            try:
+                candidates = self.erp_tools.search_purchase_order_lines(
+                    company_id,
+                    purchase_order.id,
+                    pair.invoice.description,
+                    item_code=pair.invoice.item_code,
+                    excluded_ids=tuple(used),
+                )
+                if (
+                    candidates
+                    and self.line_pairer.uses_live_model
+                    and not self.daily_ai_limit.reserve(company_id)
+                ):
+                    pairing_reasons.append("daily AI limit reached")
+                    failed = True
+                    break
+                selected_id = (
+                    self.line_pairer.choose(pair.invoice, candidates)
+                    if candidates
+                    else None
+                )
+                searches.append(
+                    {
+                        "line_number": pair.line_number,
+                        "candidates": [
+                            candidate.model_dump(mode="json")
+                            for candidate in candidates
+                        ],
+                    }
+                )
+                selected = next(
+                    (
+                        candidate
+                        for candidate in candidates
+                        if candidate.id == selected_id
+                    ),
+                    None,
+                )
+                if selected is not None:
+                    pair.purchase_order = selected
+                    pair.paired_by = "meaning"
+                    used.add(selected.id)
+            except Exception:
+                logger.exception("Line pairing failed for %s", invoice_id)
+                pair.pairing_reason = (
+                    f"Line {pair.line_number} ({pair.invoice.description}): "
+                    "line pairing is unavailable. A Reviewer needs to check this line."
+                )
+                failed = True
         self._complete_step(
             company_id,
             invoice_id,
             "Pair Lines",
-            {"pairs": [pair.model_dump(mode="json") for pair in pairs]},
+            {
+                "pairs": [pair.model_dump(mode="json") for pair in pairs],
+                "candidate_searches": searches,
+                "reasons": [reason for reason in pairing_reasons],
+            },
+            status="Failed" if failed else "Completed",
         )
-        return {**state, "paired_lines": pairs}
+        return {
+            **state,
+            "paired_lines": pairs,
+            "record_reasons": state.get("record_reasons", []) + pairing_reasons,
+        }
 
     def _three_way_match(self, state: InvoiceRun) -> InvoiceRun:
         pairs, goods_receipt = state.get("paired_lines"), state.get("goods_receipt")

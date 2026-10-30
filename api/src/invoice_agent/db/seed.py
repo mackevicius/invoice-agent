@@ -53,7 +53,11 @@ SAMPLES = (
 
 
 def seed_demo_company(
-    connection: Connection[tuple[object, ...]], company_id: UUID, now: datetime
+    connection: Connection[tuple[object, ...]],
+    company_id: UUID,
+    now: datetime,
+    embeddings: list[list[float]] | None = None,
+    embedding_model: str | None = None,
 ) -> None:
     suppliers: dict[str, UUID] = {}
     for position, sample in enumerate(SAMPLES):
@@ -78,9 +82,19 @@ def seed_demo_company(
         )
         connection.execute(
             """INSERT INTO purchase_order_lines
-               (id, company_id, purchase_order_id, description, quantity, unit_price)
-               VALUES (%s, %s, %s, %s, %s, %s)""",
-            (purchase_line_id, company_id, purchase_id, description, quantity, price),
+               (id, company_id, purchase_order_id, description, quantity,
+                unit_price, embedding, embedding_model)
+               VALUES (%s, %s, %s, %s, %s, %s, %s::vector, %s)""",
+            (
+                purchase_line_id,
+                company_id,
+                purchase_id,
+                description,
+                quantity,
+                price,
+                embeddings[position] if embeddings is not None else None,
+                embedding_model,
+            ),
         )
         connection.execute(
             """INSERT INTO goods_receipts

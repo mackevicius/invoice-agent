@@ -73,7 +73,9 @@ def compare_lines(
         price_passed = False
         quantity_passed = receipt is not None
         if purchase is None:
-            reasons.append(prefix + "no paired Purchase Order line.")
+            reasons.append(
+                pair.pairing_reason or prefix + "no paired Purchase Order line."
+            )
             mismatched_cells.extend(
                 ["invoice.description", "purchase_order.description"]
             )

@@ -195,8 +195,8 @@ test('Three-Way Match shows mismatches, savings, and every reason', async ({
   page.on('pageerror', (error) => errors.push(error.message));
   const lines = [
     {
-      item_code: 'PAPER-A4',
-      description: 'Recycled A4 paper, box',
+      item_code: null,
+      description: 'A4 recycled paper in boxes',
       quantity: '30',
       unit_price: '120.00',
     },
@@ -210,8 +210,8 @@ test('Three-Way Match shows mismatches, savings, and every reason', async ({
   const purchaseLineId = '00000000-0000-4000-8000-000000000001';
   const otherPurchaseLineId = '00000000-0000-4000-8000-000000000002';
   const reasons = [
-    'Line 1 (Recycled A4 paper, box): unit price is more than 2% above the Purchase Order.',
-    'Line 1 (Recycled A4 paper, box): invoiced quantity does not equal received quantity.',
+    'Line 1 (A4 recycled paper in boxes): unit price is more than 2% above the Purchase Order.',
+    'Line 1 (A4 recycled paper in boxes): invoiced quantity does not equal received quantity.',
   ];
   await page.route('**/api/invoices/*', async (route) => {
     const response = await route.fetch();
@@ -250,7 +250,7 @@ test('Three-Way Match shows mismatches, savings, and every reason', async ({
               purchase_order_line_id: purchaseLineId,
               quantity: '24',
             },
-            paired_by: 'item_code',
+            paired_by: 'meaning',
             unit_price_difference: '8.40',
             unit_price_difference_percent: '7.53',
             price_passed: false,
@@ -305,6 +305,13 @@ test('Three-Way Match shows mismatches, savings, and every reason', async ({
   });
   await expect(firstLine).toBeVisible();
   await expect(secondLine).toBeVisible();
+  const descriptions = firstLine.getByRole('row', { name: /^Item / });
+  await expect(descriptions.getByRole('cell').nth(0)).toHaveText(
+    'A4 recycled paper in boxes',
+  );
+  await expect(descriptions.getByRole('cell').nth(1)).toContainText(
+    'Recycled A4 paper, box',
+  );
   const price = firstLine.getByRole('row', { name: /^Unit price/ });
   await expect(price.getByRole('cell').nth(0)).toHaveAttribute(
     'data-mismatch',

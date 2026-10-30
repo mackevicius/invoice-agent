@@ -12,6 +12,7 @@ import time_machine
 from fastapi.testclient import TestClient
 
 from invoice_agent.clients.invoice_reader import ScriptedInvoiceReader
+from invoice_agent.clients.line_pairing import ModelLinePairer
 from invoice_agent.clients.vision_reader import VisionInvoiceReader
 from invoice_agent.schemas.invoice_fields import InvoiceFields
 from invoice_agent.schemas.invoices import InvoiceDetail, InvoiceFile
@@ -403,3 +404,50 @@ def test_live_provider_does_not_retry_outside_the_daily_allowance(
     blocked = processing.process(matching_company, second.id)
     assert blocked.reasons == ["daily AI limit reached"]
     assert len(requests) == 1
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+def test_live_pairing_provider_does_not_retry_outside_the_daily_allowance(
+    matching_company: UUID,
+    matching_fields: InvoiceFields,
+    database_url: str,
+    erp_tools: ERPTools,
+    document: InvoiceFile,
+    failing_model_api: tuple[str, list[bytes]],
+    monkeypatch: pytest.MonkeyPatch,
+    provider: Literal["openai", "anthropic"],
+) -> None:
+    base_url, requests = failing_model_api
+    monkeypatch.setenv("INVOICE_AI_DAILY_VISITOR_LIMIT", "1")
+    monkeypatch.setenv("INVOICE_AI_DAILY_GLOBAL_LIMIT", "1")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    monkeypatch.setenv("OPENAI_API_BASE", base_url)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+    monkeypatch.setenv("ANTHROPIC_API_URL", base_url)
+    description = "A4 recycled paper in boxes"
+    line = matching_fields.lines[0].model_copy(update={"description": description})
+    processing = InvoiceProcessing(
+        database_url,
+        reader=ScriptedInvoiceReader(
+            matching_fields.model_copy(update={"lines": [line]})
+        ),
+        erp_tools=erp_tools,
+        daily_ai_limit=DailyAILimit(database_url),
+        line_pairer=ModelLinePairer(provider=provider, model="test-model"),
+    )
+    first = processing.upload(matching_company, document)
+
+    failed = processing.process(matching_company, first.id)
+
+    assert len(requests) == 1
+    assert failed.status == "In Review"
+    assert failed.comparison[0].purchase_order is None
+    assert failed.reasons == [
+        f"Line 1 ({description}): line pairing is unavailable. "
+        "A Reviewer needs to check this line."
+    ]
+    second = processing.upload(matching_company, document)
+    blocked = processing.process(matching_company, second.id)
+    assert "daily AI limit reached" in blocked.reasons
+    assert len(requests) == 1
+    assert processing.get(matching_company, second.id) == blocked

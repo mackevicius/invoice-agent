@@ -15,17 +15,31 @@ from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
 if TYPE_CHECKING:
+    from invoice_agent.clients.embeddings import ScriptedEmbeddings
     from invoice_agent.schemas.demo_company import DemoRole
     from invoice_agent.schemas.invoice_fields import InvoiceFields
     from invoice_agent.schemas.invoices import InvoiceDetail
     from invoice_agent.services.erp_tools import ERPTools
 
 
+@pytest.fixture(autouse=True)
+def scripted_model_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("INVOICE_MODEL_PROVIDER", "fake")
+    monkeypatch.delenv("INVOICE_FAKE_LINE_CHOICES", raising=False)
+
+
 @pytest.fixture
-def erp_tools(database_url: str) -> ERPTools:
+def embeddings() -> ScriptedEmbeddings:
+    from invoice_agent.clients.embeddings import ScriptedEmbeddings
+
+    return ScriptedEmbeddings()
+
+
+@pytest.fixture
+def erp_tools(database_url: str, embeddings: ScriptedEmbeddings) -> ERPTools:
     from invoice_agent.services.erp_tools import ERPTools
 
-    return ERPTools(database_url)
+    return ERPTools(database_url, embeddings)
 
 
 @pytest.fixture
@@ -57,10 +71,19 @@ def matching_fields() -> InvoiceFields:
 
 
 @pytest.fixture
+def pairing_choices() -> dict[str, str | UUID | Exception | None]:
+    return {}
+
+
+@pytest.fixture
 def process_invoice(
-    matching_company: UUID, database_url: str, erp_tools: ERPTools
+    matching_company: UUID,
+    database_url: str,
+    erp_tools: ERPTools,
+    pairing_choices: dict[str, str | UUID | Exception | None],
 ) -> Callable[[InvoiceFields], InvoiceDetail]:
     from invoice_agent.clients.invoice_reader import ScriptedInvoiceReader
+    from invoice_agent.clients.line_pairing import ScriptedLinePairer
     from invoice_agent.schemas.invoices import InvoiceFile
     from invoice_agent.services.daily_ai_limit import DailyAILimit
     from invoice_agent.services.invoices import InvoiceProcessing
@@ -71,6 +94,7 @@ def process_invoice(
             reader=ScriptedInvoiceReader(fields),
             erp_tools=erp_tools,
             daily_ai_limit=DailyAILimit(database_url),
+            line_pairer=ScriptedLinePairer(pairing_choices),
         )
         uploaded = processing.upload(
             matching_company,
@@ -134,7 +158,7 @@ def database_url() -> Iterator[str]:
 
 
 @pytest.fixture
-def client(database_url: str) -> Iterator[TestClient]:
+def client(database_url: str, embeddings: ScriptedEmbeddings) -> Iterator[TestClient]:
     from invoice_agent.app import create_app
     from invoice_agent.clients.invoice_reader import ScriptedInvoiceReader
 
@@ -143,6 +167,7 @@ def client(database_url: str) -> Iterator[TestClient]:
             database_url=database_url,
             cookie_secure=False,
             reader=ScriptedInvoiceReader(None),
+            embeddings=embeddings,
         )
     ) as test_client:
         yield test_client

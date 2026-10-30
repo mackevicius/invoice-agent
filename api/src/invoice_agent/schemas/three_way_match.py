@@ -21,7 +21,8 @@ class PairedLine(BaseModel):
     line_number: int
     invoice: InvoiceLine
     purchase_order: PurchaseOrderLine | None
-    paired_by: Literal["item_code", "description"] | None
+    paired_by: Literal["item_code", "description", "meaning"] | None
+    pairing_reason: str | None = None
 
 
 class LineComparison(PairedLine):

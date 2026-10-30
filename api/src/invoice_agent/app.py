@@ -6,8 +6,14 @@ import psycopg
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import RequestResponseEndpoint
 
+from invoice_agent.clients.embeddings import TextEmbeddings
 from invoice_agent.clients.invoice_reader import InvoiceReader
-from invoice_agent.clients.reader_settings import configured_reader
+from invoice_agent.clients.line_pairing import LinePairer
+from invoice_agent.clients.reader_settings import (
+    configured_embeddings,
+    configured_line_pairer,
+    configured_reader,
+)
 from invoice_agent.db.initialize import initialize_database
 from invoice_agent.routes.demo_company import create_demo_company_router
 from invoice_agent.routes.invoices import create_invoice_router
@@ -23,6 +29,8 @@ def create_app(
     cookie_secure: bool | None = None,
     *,
     reader: InvoiceReader | None = None,
+    embeddings: TextEmbeddings | None = None,
+    line_pairer: LinePairer | None = None,
     invoice_queue: InvoiceQueue | None = None,
 ) -> FastAPI:
     url = database_url or os.environ["DATABASE_URL"]
@@ -31,17 +39,21 @@ def create_app(
         if cookie_secure is not None
         else os.environ.get("COOKIE_SECURE", "true").lower() != "false"
     )
+    embedding_model = embeddings or configured_embeddings()
+    erp_tools = ERPTools(url, embedding_model)
     processing = InvoiceProcessing(
         url,
         reader=reader or configured_reader(),
-        erp_tools=ERPTools(url),
+        erp_tools=erp_tools,
         daily_ai_limit=DailyAILimit(url),
+        line_pairer=line_pairer or configured_line_pairer(),
     )
     queue = invoice_queue or InProcessInvoiceQueue(processing.process)
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
         initialize_database(url)
+        erp_tools.index_purchase_order_lines()
         if isinstance(queue, InProcessInvoiceQueue):
             queue.start()
         try:
@@ -67,7 +79,7 @@ def create_app(
             connection.execute("SELECT 1")
         return {"status": "ok"}
 
-    companies = DemoCompanies(database_url=url)
+    companies = DemoCompanies(database_url=url, embeddings=embedding_model)
     app.include_router(create_demo_company_router(companies, cookie_secure=secure))
     app.include_router(create_invoice_router(companies, processing, queue))
     return app

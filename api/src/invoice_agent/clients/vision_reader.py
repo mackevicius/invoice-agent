@@ -3,10 +3,10 @@ from dataclasses import dataclass
 from typing import Literal
 
 from langchain_core.exceptions import OutputParserException
-from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import ValidationError
 
+from invoice_agent.clients.chat_model import create_chat_model
 from invoice_agent.schemas.invoice_fields import InvoiceFields, InvoiceReadResult
 from invoice_agent.schemas.invoices import InvoiceFile
 
@@ -21,23 +21,7 @@ class VisionInvoiceReader:
         return True
 
     def read(self, document: InvoiceFile) -> InvoiceFields | None:
-        model: BaseChatModel
-        if self.provider == "openai":
-            from langchain_openai import ChatOpenAI
-
-            model = ChatOpenAI(
-                model=self.model, timeout=45, max_retries=0, max_completion_tokens=4096
-            )
-        else:
-            from langchain_anthropic import ChatAnthropic
-
-            model = ChatAnthropic(
-                model_name=self.model,
-                timeout=45,
-                max_retries=0,
-                max_tokens_to_sample=4096,
-                stop=None,
-            )
+        model = create_chat_model(self.provider, self.model, max_tokens=4096)
         message = HumanMessage(
             content=[
                 {"type": "text", "text": "Read the attached Invoice."},
