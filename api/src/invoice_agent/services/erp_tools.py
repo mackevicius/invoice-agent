@@ -4,7 +4,12 @@ from uuid import UUID
 import psycopg
 from psycopg.rows import dict_row
 
-from invoice_agent.schemas.erp_tools import GoodsReceipt, PurchaseOrder, Supplier
+from invoice_agent.schemas.erp_tools import (
+    EarlierInvoice,
+    GoodsReceipt,
+    PurchaseOrder,
+    Supplier,
+)
 
 
 class ERPTools:
@@ -24,6 +29,27 @@ class ERPTools:
             supplier for supplier in suppliers if _supplier_key(supplier["name"]) == key
         ]
         return Supplier.model_validate(matches[0]) if len(matches) == 1 else None
+
+    def find_earlier_invoices(
+        self, company_id: UUID, supplier_id: UUID, invoice_id: UUID
+    ) -> list[EarlierInvoice]:
+        with psycopg.connect(self.database_url, row_factory=dict_row) as connection:
+            invoices = connection.execute(
+                """SELECT earlier.id, earlier.invoice_number, earlier.total,
+                                  earlier.created_at AS received_at
+                   FROM invoices AS earlier
+                   JOIN invoices AS current_invoice
+                     ON current_invoice.company_id = earlier.company_id
+                   JOIN demo_companies AS company ON company.id = earlier.company_id
+                   WHERE earlier.company_id = %s AND earlier.supplier_id = %s
+                     AND current_invoice.id = %s AND earlier.id <> current_invoice.id
+                     AND earlier.created_at <= current_invoice.created_at
+                     AND earlier.invoice_number IS NOT NULL
+                     AND company.expires_at > %s
+                   ORDER BY earlier.created_at, earlier.id""",
+                (company_id, supplier_id, invoice_id, datetime.now(UTC)),
+            ).fetchall()
+        return [EarlierInvoice.model_validate(invoice) for invoice in invoices]
 
     def get_purchase_order(
         self, company_id: UUID, supplier_id: UUID, number: str

@@ -5,6 +5,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
+import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
@@ -168,11 +169,13 @@ export function InvoiceDetails({
   invoice,
   role,
   onDecided,
+  onOpenInvoice,
   onExpired,
 }: {
   invoice: InvoiceDetail;
   role: DemoRole;
   onDecided: (invoice: InvoiceDetail) => void;
+  onOpenInvoice: (invoiceId: string) => void;
   onExpired: (error: DemoCompanyExpiredError) => void;
 }) {
   const queryClient = useQueryClient();
@@ -180,6 +183,10 @@ export function InvoiceDetails({
   const [reason, setReason] = useState('');
   const reasonInput = useRef<HTMLTextAreaElement>(null);
   const rejectButton = useRef<HTMLButtonElement>(null);
+  const duplicates =
+    invoice.steps.find(
+      (step) => step.name === 'Check Duplicates' && step.status === 'Completed',
+    )?.outputs?.duplicates ?? [];
   const decision = useMutation({
     mutationFn: (command: InvoiceDecision) =>
       decideInvoice(invoice.id, role, command),
@@ -483,8 +490,29 @@ export function InvoiceDetails({
         <section className={styles.reasons} aria-label="Review reasons">
           <h2>Review reasons</h2>
           <ul>
-            {invoice.reasons.map((reason) => (
-              <li key={reason}>{reason}</li>
+            {invoice.reasons
+              .filter(
+                (reason) =>
+                  !duplicates.some((duplicate) => duplicate.reason === reason),
+              )
+              .map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            {duplicates.map((duplicate) => (
+              <li key={duplicate.invoice_id}>
+                <Link
+                  href={`?invoice=${duplicate.invoice_id}`}
+                  prefetch={false}
+                  aria-disabled={decision.isPending}
+                  onNavigate={(event) => {
+                    event.preventDefault();
+                    if (!decision.isPending)
+                      onOpenInvoice(duplicate.invoice_id);
+                  }}
+                >
+                  {duplicate.reason}
+                </Link>
+              </li>
             ))}
           </ul>
         </section>

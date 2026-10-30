@@ -48,6 +48,7 @@ class InvoiceStep(BaseModel):
 class InvoiceDetail(InvoiceHeader):
     filename: str | None
     fields: InvoiceFields | None
+    received_at: datetime
     submitted_by: str = "submitter"
     rejection_reason: str | None = None
     can_decide: bool = False

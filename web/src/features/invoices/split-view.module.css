@@ -821,6 +821,16 @@
   overflow-wrap: anywhere;
 }
 
+.reasons a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.reasons a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
 .spin {
   animation: spin 1s linear infinite;
 }

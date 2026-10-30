@@ -57,6 +57,6 @@ def test_price_tolerance_and_visible_difference(
     assert comparison.purchase_order is not None
     assert comparison.purchase_order.unit_price == Decimal("100.00")
     assert [step.status for step in result.steps[:6]] == ["Completed"] * 6
-    assert result.steps[6].status == "Skipped"
+    assert result.steps[6].status == "Completed"
     assert result.steps[7].name == "Decide"
     assert result.steps[7].status == "Completed"

@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -9,6 +10,13 @@ class Supplier(BaseModel):
 
     id: UUID
     name: str
+
+
+class EarlierInvoice(BaseModel):
+    id: UUID
+    invoice_number: str
+    total: Decimal | None
+    received_at: datetime
 
 
 class PurchaseOrderLine(BaseModel):

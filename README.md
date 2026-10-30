@@ -5,7 +5,8 @@ Visitors get a private, seeded Demo Company and can upload an Invoice to watch
 its fields being read, its Supplier looked up, and its Three-Way Match in the
 Split view. No model calls are needed to browse the samples. Uploaded Invoices
 finish In Review with every failed check listed, or **All checks passed** until
-Auto-Approval is implemented. Duplicate Invoice checks are later work.
+Auto-Approval is implemented. Known Suppliers are checked for Duplicate Invoices
+and Possible Duplicates.
 
 ## Run Locally
 
@@ -101,7 +102,7 @@ omitting it selects Submitter. The Demo Company cookie is still required.
 - `GET /api/invoices/counts` returns `all`, `mine`, `review_queue`, and `done`
   counts across the Company, with Mine scoped to the current person.
 - `GET /api/invoices/{id}` includes `submitted_by`, `can_decide`,
-  `decision_block_reason`, and `rejection_reason`.
+  `decision_block_reason`, `rejection_reason`, and `received_at`.
 - `POST /api/invoices/{id}/approve` approves; `POST /api/invoices/{id}/reject`
   rejects with `{"rejection_reason": "The goods did not arrive."}`. Reasons
   are trimmed and limited to 2,000 characters. Permissions, Company isolation,
@@ -170,7 +171,8 @@ require review; a Purchase Order line cannot be reused by another Invoice line.
 
 The model only reads the Invoice; it does not compute pass/fail or decide the
 Invoice Status. Successful checks still finish In Review with **All checks
-passed**. Check Duplicates remains explicitly Skipped until that feature exists.
+passed**. Duplicate checks run even when matching fails or the Purchase Order
+is missing.
 
 The default fake Invoice names Baltic Office Supplies, which is not seeded,
 so it demonstrates the unknown-Supplier path. An alternate fake response can
@@ -178,6 +180,21 @@ exercise a passing Three-Way Match with Supplier **Paper & Co.**, Purchase Order
 **PO-1002**, and description **Recycled A4 paper, box**, quantity **24**, unit
 price **111.60**. Use `purchase_order_number` on the Invoice and optional
 `item_code` on each line in the JSON response.
+
+## Duplicate Invoices
+
+`ERPTools.find_earlier_invoices` reads earlier Invoices for the same Supplier
+and Demo Company, excluding the current Invoice and later uploads.
+
+- The same Invoice number is a **Duplicate Invoice**, regardless of age or total.
+- A different Invoice number with the same total, received within 30 days,
+  is a **Possible Duplicate**. Exactly 30 days is included; the window uses
+  when the Invoice was received, not its printed date.
+
+Both finish In Review. Every earlier Invoice is named in a reason that opens
+its record in the detail pane; the link also works in a new tab. Matching and
+duplicate reasons appear together. An unavailable history lookup fails the
+Check Duplicates step and sends the Invoice to review with a clear reason.
 
 ## Checks and Tests
 
@@ -188,6 +205,8 @@ Supplier tests use the real ERP tables, including name variations,
 unknown Suppliers, ERP failures and isolation between Demo Companies.
 Three-Way Match tests use the same public interface, with separate files for
 Price Tolerance, quantities, missing records and simple line pairing.
+Duplicate Invoice tests cover both rules, the 30-day boundary, combined failure
+reasons, history failures, saved record links, and Company/Supplier isolation.
 Daily AI limit tests cover both caps, concurrent workers, Demo Company renewal,
 midnight UTC reset, zero limits, and scripted reads. The live SDK retry checks
 use a local HTTP endpoint; no paid provider is contacted.
@@ -217,7 +236,7 @@ PLAYWRIGHT_BASE_URL=http://localhost:3000 npm test
 
 The browser tests cover Invoice selection, Demo Company persistence and expiry,
 upload through the real API and worker, switching from Submitter to Reviewer
-and approving from the Review Queue, and the comparison grid's mismatch
+and approving from the Review Queue, links to earlier Invoices, and the comparison grid's mismatch
 colors, lower-price differences and mobile layout. The grid rendering check
 uses a fixed HTTP response; processing rules are tested against real Postgres.
 CI runs Python

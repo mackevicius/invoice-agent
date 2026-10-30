@@ -1,5 +1,5 @@
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal, NotRequired, TypedDict
 from uuid import UUID, uuid4
 
@@ -69,6 +69,7 @@ class InvoiceRun(TypedDict):
     record_reasons: NotRequired[list[str]]
     paired_lines: NotRequired[list[PairedLine]]
     comparison: NotRequired[list[LineComparison]]
+    duplicate_reasons: NotRequired[list[str]]
 
 
 class InvoiceNotFound(LookupError):
@@ -102,6 +103,7 @@ class InvoiceProcessing:
         graph.add_node("find_goods_receipt", self._find_goods_receipt)
         graph.add_node("pair_lines", self._pair_lines)
         graph.add_node("three_way_match", self._three_way_match)
+        graph.add_node("check_duplicates", self._check_duplicates)
         graph.add_node("decide", self._decide)
         graph.add_edge(START, "read_invoice")
         graph.add_edge("read_invoice", "find_supplier")
@@ -109,7 +111,8 @@ class InvoiceProcessing:
         graph.add_edge("find_purchase_order", "find_goods_receipt")
         graph.add_edge("find_goods_receipt", "pair_lines")
         graph.add_edge("pair_lines", "three_way_match")
-        graph.add_edge("three_way_match", "decide")
+        graph.add_edge("three_way_match", "check_duplicates")
+        graph.add_edge("check_duplicates", "decide")
         graph.add_edge("decide", END)
         self.graph = graph.compile()
 
@@ -215,7 +218,8 @@ class InvoiceProcessing:
                 """SELECT invoice.id, invoice_number, supplier_name AS supplier,
                           total, invoice.currency, status, issued_on,
                           file_name AS filename, read_fields AS fields, reasons,
-                          comparison, submitted_by, rejection_reason
+                          comparison, submitted_by, rejection_reason,
+                          invoice.created_at AS received_at
                    FROM invoices AS invoice
                    JOIN demo_companies AS company ON company.id = invoice.company_id
                    WHERE company_id = %s AND invoice.id = %s
@@ -512,8 +516,7 @@ class InvoiceProcessing:
                 {"reason": reason},
                 status="Failed",
             )
-            self._send_to_review(company_id, invoice_id, [reason])
-            return state
+            return {**state, "record_reasons": [reason]}
         self._complete_step(
             company_id,
             invoice_id,
@@ -530,8 +533,7 @@ class InvoiceProcessing:
                 if number is not None and number.strip()
                 else "No Purchase Order is named on this Invoice."
             )
-            self._send_to_review(company_id, invoice_id, [reason])
-            return state
+            return {**state, "record_reasons": [reason]}
         return {**state, "purchase_order": purchase_order}
 
     def _find_goods_receipt(self, state: InvoiceRun) -> InvoiceRun:
@@ -649,21 +651,88 @@ class InvoiceProcessing:
         )
         return {**state, "comparison": comparison}
 
-    def _decide(self, state: InvoiceRun) -> InvoiceRun:
-        comparison = state.get("comparison")
-        if comparison is None:
+    def _check_duplicates(self, state: InvoiceRun) -> InvoiceRun:
+        supplier = state.get("supplier")
+        if supplier is None:
             return state
         company_id, invoice_id = state["company_id"], state["invoice_id"]
-        reasons = state.get("record_reasons", []) + [
-            reason for line in comparison for reason in line.reasons
+        invoice = self._require(company_id, invoice_id)
+        if invoice.fields is None or not self._start_step(
+            company_id,
+            invoice_id,
+            "Check Duplicates",
+            {"supplier_id": str(supplier.id)},
+        ):
+            return state
+        try:
+            earlier_invoices = self.erp_tools.find_earlier_invoices(
+                company_id, supplier.id, invoice_id
+            )
+        except Exception:
+            logger.exception("Duplicate Invoice check failed for %s", invoice_id)
+            reason = (
+                "Duplicate Invoice check is unavailable. "
+                "A Reviewer needs to check this Invoice."
+            )
+            self._complete_step(
+                company_id,
+                invoice_id,
+                "Check Duplicates",
+                {"reason": reason},
+                status="Failed",
+            )
+            return {**state, "duplicate_reasons": [reason]}
+        duplicates: list[JsonValue] = []
+        reasons: list[str] = []
+        for earlier in earlier_invoices:
+            if earlier.invoice_number == invoice.fields.invoice_number:
+                reason = (
+                    f"Duplicate Invoice: {earlier.invoice_number} was already received."
+                )
+            elif (
+                earlier.total == invoice.fields.total
+                and invoice.received_at - earlier.received_at <= timedelta(days=30)
+            ):
+                reason = (
+                    f"Possible Duplicate: {earlier.invoice_number} has the same total "
+                    "and was received within 30 days."
+                )
+            else:
+                continue
+            reasons.append(reason)
+            duplicates.append(
+                {
+                    "invoice_id": str(earlier.id),
+                    "invoice_number": earlier.invoice_number,
+                    "reason": reason,
+                }
+            )
+        self._complete_step(
+            company_id, invoice_id, "Check Duplicates", {"duplicates": duplicates}
+        )
+        return {**state, "duplicate_reasons": reasons}
+
+    def _decide(self, state: InvoiceRun) -> InvoiceRun:
+        duplicate_reasons = state.get("duplicate_reasons")
+        if duplicate_reasons is None:
+            return state
+        comparison = state.get("comparison")
+        company_id, invoice_id = state["company_id"], state["invoice_id"]
+        matching_reasons = state.get("record_reasons", []) + [
+            reason for line in comparison or [] for reason in line.reasons
         ]
         if not self._start_step(
             company_id,
             invoice_id,
             "Decide",
-            {"three_way_match_passed": not reasons},
+            {
+                "three_way_match_passed": comparison is not None
+                and not matching_reasons,
+                "duplicate_check_passed": not duplicate_reasons,
+            },
         ):
             return state
+        reasons = matching_reasons + duplicate_reasons
         reasons = reasons or ["All checks passed"]
         self._complete_step(
             company_id,
@@ -675,7 +744,6 @@ class InvoiceProcessing:
             company_id,
             invoice_id,
             reasons,
-            skip_reason="Duplicate Invoice checks are not implemented.",
         )
         return state
 

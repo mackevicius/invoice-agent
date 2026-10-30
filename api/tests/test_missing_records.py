@@ -38,7 +38,13 @@ def test_missing_or_different_supplier_purchase_order_goes_in_review(
     assert result.steps[2].name == "Find Purchase Order"
     assert result.steps[2].status == "Completed"
     assert result.steps[2].outputs == {"purchase_order": None}
-    assert all(step.status == "Skipped" for step in result.steps[3:])
+    assert [step.status for step in result.steps[3:]] == [
+        "Skipped",
+        "Skipped",
+        "Skipped",
+        "Completed",
+        "Completed",
+    ]
 
 
 def test_missing_goods_receipt_goes_in_review(
@@ -67,7 +73,7 @@ def test_missing_goods_receipt_goes_in_review(
     assert [step.status for step in result.steps[4:]] == [
         "Completed",
         "Completed",
-        "Skipped",
+        "Completed",
         "Completed",
     ]
     assert result.comparison[0].price_passed is True

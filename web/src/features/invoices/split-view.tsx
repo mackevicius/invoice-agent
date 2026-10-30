@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   skipToken,
   useIsMutating,
@@ -66,12 +67,15 @@ function errorMessage(error: unknown): string {
 }
 
 export function SplitView() {
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const busy = useIsMutating() > 0;
   const main = useRef<HTMLElement>(null);
   const [role, setRole] = useState<DemoRole>('Submitter');
   const [view, setView] = useState<InvoiceView>('mine');
-  const [chosenId, setChosenId] = useState<string | null>(null);
+  const [chosenId, setChosenId] = useState<string | null>(() =>
+    searchParams.get('invoice'),
+  );
   const [uploadOpen, setUploadOpen] = useState(false);
   const [sessionError, setSessionError] =
     useState<DemoCompanyExpiredError | null>(null);
@@ -152,6 +156,12 @@ export function SplitView() {
   function changeRole(nextRole: DemoRole) {
     setRole(nextRole);
     changeView(defaultViews[nextRole]);
+  }
+
+  function openInvoice(invoiceId: string) {
+    setChosenId(invoiceId);
+    setUploadOpen(false);
+    main.current?.scrollTo({ top: 0 });
   }
 
   function navigateTabs(event: KeyboardEvent<HTMLDivElement>) {
@@ -261,6 +271,7 @@ export function SplitView() {
         invoice={invoice.data}
         role={role}
         onDecided={decided}
+        onOpenInvoice={openInvoice}
         onExpired={setSessionError}
       />
     );
@@ -375,11 +386,7 @@ export function SplitView() {
                       className={styles.invoiceButton}
                       disabled={busy}
                       aria-pressed={!uploadOpen && selectedId === invoice.id}
-                      onClick={() => {
-                        setChosenId(invoice.id);
-                        setUploadOpen(false);
-                        main.current?.scrollTo({ top: 0 });
-                      }}
+                      onClick={() => openInvoice(invoice.id)}
                     >
                       <span className={styles.invoiceRow}>
                         <span className={styles.invoiceIdentity}>

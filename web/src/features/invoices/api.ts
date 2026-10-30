@@ -94,7 +94,20 @@ const invoiceDetailSchema = invoiceHeaderSchema.extend({
       name: z.string(),
       status: z.enum(['Pending', 'Running', 'Completed', 'Failed', 'Skipped']),
       inputs: z.record(z.string(), z.json()),
-      outputs: z.record(z.string(), z.json()).nullable(),
+      outputs: z
+        .object({
+          duplicates: z
+            .array(
+              z.object({
+                invoice_id: z.uuid(),
+                invoice_number: z.string(),
+                reason: z.string(),
+              }),
+            )
+            .optional(),
+        })
+        .catchall(z.json())
+        .nullable(),
       started_at: z.iso.datetime({ offset: true }).nullable(),
       completed_at: z.iso.datetime({ offset: true }).nullable(),
     }),

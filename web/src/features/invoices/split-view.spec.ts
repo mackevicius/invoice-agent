@@ -348,3 +348,107 @@ test('Three-Way Match shows mismatches, savings, and every reason', async ({
     fullPage: true,
   });
 });
+
+test('duplicate reasons link to each earlier Invoice', async ({
+  page,
+}, testInfo) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/');
+
+  const sidebar = page.getByRole('complementary', { name: 'Invoices' });
+  const detail = page.getByRole('main', { name: 'Invoice details' });
+  await expect(detail.getByRole('heading', { name: 'INV-1042' })).toBeVisible();
+  const response = await page.request.get('/api/invoices?view=all');
+  expect(response.ok()).toBe(true);
+  const invoices: { id: string; invoice_number: string }[] =
+    await response.json();
+  const current = invoices.find(
+    (invoice) => invoice.invoice_number === 'INV-1042',
+  );
+  const exact = invoices.find(
+    (invoice) => invoice.invoice_number === 'INV-0309',
+  );
+  const possible = invoices.find(
+    (invoice) => invoice.invoice_number === 'INV-0781',
+  );
+  if (!current || !exact || !possible) {
+    throw new Error('The Demo Company must contain the sample Invoices.');
+  }
+  const matchReason = 'No Purchase Order is named on this Invoice.';
+  const duplicates = [
+    {
+      invoice_id: exact.id,
+      invoice_number: exact.invoice_number,
+      reason: 'Duplicate Invoice: INV-0309 was already received.',
+    },
+    {
+      invoice_id: possible.id,
+      invoice_number: possible.invoice_number,
+      reason:
+        'Possible Duplicate: INV-0781 has the same total and was received within 30 days.',
+    },
+  ];
+  await page.route(`**/api/invoices/${current.id}`, async (route) => {
+    const originalResponse = await route.fetch();
+    const original = await originalResponse.json();
+    await route.fulfill({
+      response: originalResponse,
+      json: {
+        ...original,
+        status: 'In Review',
+        reasons: [
+          matchReason,
+          ...duplicates.map((duplicate) => duplicate.reason),
+        ],
+        steps: [
+          {
+            name: 'Check Duplicates',
+            status: 'Completed',
+            inputs: {},
+            outputs: { duplicates },
+            started_at: '2026-10-30T12:00:00Z',
+            completed_at: '2026-10-30T12:00:01Z',
+          },
+        ],
+      },
+    });
+  });
+  await page.reload();
+  const roleSwitch = sidebar.getByRole('group', { name: 'Viewing as' });
+  await roleSwitch.getByRole('button', { name: 'Admin', exact: true }).click();
+
+  const review = detail.getByRole('region', { name: 'Review reasons' });
+  await expect(review.getByRole('listitem')).toHaveText([
+    matchReason,
+    ...duplicates.map((duplicate) => duplicate.reason),
+  ]);
+  await expect(review.getByRole('link')).toHaveCount(2);
+  const exactLink = review.getByRole('link', { name: duplicates[0].reason });
+  await expect(exactLink).toHaveAttribute('href', `?invoice=${exact.id}`);
+  await expect(
+    review.getByRole('link', { name: duplicates[1].reason }),
+  ).toHaveAttribute('href', `?invoice=${possible.id}`);
+  await review.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: testInfo.outputPath('duplicate-reasons.png'),
+    fullPage: true,
+  });
+
+  await exactLink.click();
+
+  await expect(detail.getByRole('heading', { name: 'INV-0309' })).toBeVisible();
+  await expect(
+    roleSwitch.getByRole('button', { name: 'Admin', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await page.goto(`/?invoice=${possible.id}`);
+  await expect(detail.getByRole('heading', { name: 'INV-0781' })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+  expect(errors).toEqual([]);
+});

@@ -51,8 +51,8 @@ def matching_fields() -> InvoiceFields:
             )
         ],
         subtotal=Decimal("2678.40"),
-        tax=Decimal("0"),
-        total=Decimal("2678.40"),
+        tax=Decimal("535.68"),
+        total=Decimal("3214.08"),
     )
 
 
