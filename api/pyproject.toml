@@ -8,6 +8,7 @@ dependencies = [
     "fastembed>=0.9,<1",
     "langchain-anthropic>=1,<2",
     "langchain-openai>=1,<2",
+    "langfuse>=5,<6",
     "langgraph>=1,<2",
     "psycopg[binary]>=3.2,<4",
     "python-multipart>=0.0.20,<1",

@@ -14,6 +14,7 @@ from invoice_agent.clients.reader_settings import (
     configured_line_pairer,
     configured_reader,
 )
+from invoice_agent.clients.tracing import RunTracing, configured_tracing
 from invoice_agent.db.initialize import initialize_database
 from invoice_agent.routes.demo_company import create_demo_company_router
 from invoice_agent.routes.invoices import create_invoice_router
@@ -32,6 +33,7 @@ def create_app(
     embeddings: TextEmbeddings | None = None,
     line_pairer: LinePairer | None = None,
     invoice_queue: InvoiceQueue | None = None,
+    tracing: RunTracing | None = None,
 ) -> FastAPI:
     url = database_url or os.environ["DATABASE_URL"]
     secure = (
@@ -41,12 +43,14 @@ def create_app(
     )
     embedding_model = embeddings or configured_embeddings()
     erp_tools = ERPTools(url, embedding_model)
+    run_tracing = tracing or configured_tracing()
     processing = InvoiceProcessing(
         url,
         reader=reader or configured_reader(),
         erp_tools=erp_tools,
         daily_ai_limit=DailyAILimit(url),
         line_pairer=line_pairer or configured_line_pairer(),
+        tracing=run_tracing,
     )
     queue = invoice_queue or InProcessInvoiceQueue(processing.process)
 
@@ -59,8 +63,11 @@ def create_app(
         try:
             yield
         finally:
-            if isinstance(queue, InProcessInvoiceQueue):
-                queue.close()
+            try:
+                if isinstance(queue, InProcessInvoiceQueue):
+                    queue.close()
+            finally:
+                run_tracing.close()
 
     app = FastAPI(title="Invoice Agent", lifespan=lifespan)
 

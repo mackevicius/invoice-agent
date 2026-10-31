@@ -26,6 +26,9 @@ if TYPE_CHECKING:
 def scripted_model_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("INVOICE_MODEL_PROVIDER", "fake")
     monkeypatch.delenv("INVOICE_FAKE_LINE_CHOICES", raising=False)
+    monkeypatch.delenv("LANGFUSE_PUBLIC_KEY", raising=False)
+    monkeypatch.delenv("LANGFUSE_SECRET_KEY", raising=False)
+    monkeypatch.delenv("LANGFUSE_TRACING_ENABLED", raising=False)
 
 
 @pytest.fixture

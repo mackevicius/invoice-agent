@@ -117,7 +117,8 @@ ALTER TABLE invoices
     ADD COLUMN IF NOT EXISTS submitted_by TEXT NOT NULL DEFAULT 'submitter',
     ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
     ADD COLUMN IF NOT EXISTS auto_approval_limit NUMERIC(14, 2)
-        CHECK (auto_approval_limit >= 0);
+        CHECK (auto_approval_limit >= 0),
+    ADD COLUMN IF NOT EXISTS trace_url TEXT;
 
 ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_currency_check;
 ALTER TABLE invoices ADD CONSTRAINT invoices_currency_check

@@ -375,6 +375,28 @@
   overflow-wrap: anywhere;
 }
 
+.traceLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: 12px;
+  color: #345f49;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+.traceLink:hover {
+  color: #0f3624;
+}
+
+.traceLink:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid #375c47;
+  outline-offset: 4px;
+}
+
 .statusBadge {
   gap: 7px;
   border-color: transparent;

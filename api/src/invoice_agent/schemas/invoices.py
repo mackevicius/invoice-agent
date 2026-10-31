@@ -52,6 +52,7 @@ class InvoiceDetail(InvoiceHeader):
     submitted_by: str = "submitter"
     rejection_reason: str | None = None
     auto_approval_limit: Decimal | None = None
+    trace_url: str | None = None
     can_decide: bool = False
     decision_block_reason: str | None = None
     comparison: list[LineComparison] = Field(default_factory=list)

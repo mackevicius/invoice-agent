@@ -175,6 +175,67 @@ test('a visitor selects an Invoice and returns to the same Demo Company', async 
   }
 });
 
+test('the Invoice header links to its trace only when a URL is present', async ({
+  page,
+  context,
+}, testInfo) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const traceUrl =
+    'https://langfuse.test/project/demo/traces/00000000000000000000000000000001';
+  let hasTrace = true;
+  await page.route('**/api/invoices/*', async (route) => {
+    const response = await route.fetch();
+    const invoice = await response.json();
+    await route.fulfill({
+      response,
+      json: { ...invoice, trace_url: hasTrace ? traceUrl : null },
+    });
+  });
+  await context.route(traceUrl, (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<title>Invoice trace</title>',
+    }),
+  );
+
+  await page.goto('/');
+
+  const detail = page.getByRole('main', { name: 'Invoice details' });
+  await expect(detail.getByRole('heading', { name: 'INV-1042' })).toBeVisible();
+  const link = detail.getByRole('link', { name: 'Langfuse trace' });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute('href', traceUrl);
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  expect(
+    await link.evaluate((element) => element.closest('header') !== null),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+  await page.screenshot({
+    path: testInfo.outputPath('trace-header.png'),
+    fullPage: true,
+  });
+  const tracePageOpened = page.waitForEvent('popup');
+  await link.click();
+  const tracePage = await tracePageOpened;
+  await expect(tracePage).toHaveURL(traceUrl);
+  await tracePage.close();
+
+  hasTrace = false;
+  await page.reload();
+
+  await expect(detail.getByRole('heading', { name: 'INV-1042' })).toBeVisible();
+  await expect(link).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('a Submitter uploads an unknown Supplier Invoice and a Reviewer approves it', async ({
   page,
 }, testInfo) => {

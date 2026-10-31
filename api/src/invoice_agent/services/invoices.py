@@ -12,6 +12,7 @@ from pydantic import JsonValue
 
 from invoice_agent.clients.invoice_reader import InvoiceReader
 from invoice_agent.clients.line_pairing import LinePairer
+from invoice_agent.clients.tracing import RunTracing
 from invoice_agent.schemas.demo_company import DemoPerson
 from invoice_agent.schemas.erp_tools import GoodsReceipt, PurchaseOrder, Supplier
 from invoice_agent.schemas.invoices import (
@@ -93,12 +94,14 @@ class InvoiceProcessing:
         erp_tools: ERPTools,
         daily_ai_limit: DailyAILimit,
         line_pairer: LinePairer | None = None,
+        tracing: RunTracing | None = None,
     ) -> None:
         self.database_url = database_url
         self.reader = reader
         self.erp_tools = erp_tools
         self.daily_ai_limit = daily_ai_limit
         self.line_pairer = line_pairer
+        self.tracing = tracing or RunTracing()
         graph = StateGraph(InvoiceRun)
         graph.add_node("read_invoice", self._read_invoice)
         graph.add_node("find_supplier", self._find_supplier)
@@ -172,8 +175,21 @@ class InvoiceProcessing:
         return self._require(company_id, invoice_id)
 
     def process(self, company_id: UUID, invoice_id: UUID) -> InvoiceDetail:
-        self.graph.invoke({"company_id": company_id, "invoice_id": invoice_id})
-        return self._require(company_id, invoice_id)
+        with self.tracing.run(company_id, invoice_id) as trace:
+            if trace.url is not None:
+                with psycopg.connect(self.database_url) as connection:
+                    connection.execute(
+                        """UPDATE invoices SET trace_url = %s
+                           WHERE company_id = %s AND id = %s""",
+                        (trace.url, company_id, invoice_id),
+                    )
+            self.graph.invoke(
+                {"company_id": company_id, "invoice_id": invoice_id},
+                config={"callbacks": trace.callbacks},
+            )
+            result = self._require(company_id, invoice_id)
+            trace.complete(result)
+        return result
 
     def list_headers(
         self,
@@ -223,6 +239,7 @@ class InvoiceProcessing:
                           file_name AS filename, read_fields AS fields, reasons,
                           comparison, submitted_by, rejection_reason,
                              invoice.auto_approval_limit,
+                                  invoice.trace_url,
                           invoice.created_at AS received_at
                    FROM invoices AS invoice
                    JOIN demo_companies AS company ON company.id = invoice.company_id
@@ -440,7 +457,9 @@ class InvoiceProcessing:
         outputs: dict[str, JsonValue]
         reason: str | None
         try:
-            supplier = self.erp_tools.find_supplier(company_id, name)
+            supplier = self.tracing.tool(
+                "find_supplier", self.erp_tools.find_supplier, company_id, name
+            )
         except Exception:
             logger.exception("Supplier lookup failed for %s", invoice_id)
             supplier = None
@@ -510,8 +529,12 @@ class InvoiceProcessing:
             return state
         try:
             purchase_order = (
-                self.erp_tools.get_purchase_order(
-                    company_id, supplier.id, number.strip()
+                self.tracing.tool(
+                    "get_purchase_order",
+                    self.erp_tools.get_purchase_order,
+                    company_id,
+                    supplier.id,
+                    number.strip(),
                 )
                 if number is not None and number.strip()
                 else None
@@ -562,8 +585,11 @@ class InvoiceProcessing:
         ):
             return state
         try:
-            goods_receipt = self.erp_tools.get_goods_receipt(
-                company_id, purchase_order.id
+            goods_receipt = self.tracing.tool(
+                "get_goods_receipt",
+                self.erp_tools.get_goods_receipt,
+                company_id,
+                purchase_order.id,
             )
         except Exception:
             logger.exception("Goods Receipt lookup failed for %s", invoice_id)
@@ -624,7 +650,9 @@ class InvoiceProcessing:
             if pair.purchase_order is not None or self.line_pairer is None:
                 continue
             try:
-                candidates = self.erp_tools.search_purchase_order_lines(
+                candidates = self.tracing.tool(
+                    "search_purchase_order_lines",
+                    self.erp_tools.search_purchase_order_lines,
                     company_id,
                     purchase_order.id,
                     pair.invoice.description,
@@ -743,8 +771,12 @@ class InvoiceProcessing:
         ):
             return state
         try:
-            earlier_invoices = self.erp_tools.find_earlier_invoices(
-                company_id, supplier.id, invoice_id
+            earlier_invoices = self.tracing.tool(
+                "find_earlier_invoices",
+                self.erp_tools.find_earlier_invoices,
+                company_id,
+                supplier.id,
+                invoice_id,
             )
         except Exception:
             logger.exception("Duplicate Invoice check failed for %s", invoice_id)

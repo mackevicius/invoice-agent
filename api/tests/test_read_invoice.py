@@ -60,6 +60,7 @@ def test_read_fields_and_recorded_step(
     assert result.supplier == "Baltic Office Supplies"
     assert result.invoice_number == "INV-2026-42"
     assert result.total == Decimal("45.38")
+    assert result.trace_url is None
     assert result.steps[0].name == "Read Invoice"
     assert result.steps[0].status == "Completed"
     assert result.steps[0].inputs == {

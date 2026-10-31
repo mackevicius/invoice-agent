@@ -11,6 +11,7 @@ import {
   Check,
   Circle,
   CircleMinus,
+  ExternalLink,
   LoaderCircle,
   LockKeyhole,
   TriangleAlert,
@@ -230,6 +231,17 @@ export function InvoiceDetails({
               (invoice.status === 'Processing'
                 ? 'Reading Supplier'
                 : 'Supplier not read')}
+            {invoice.trace_url && (
+              <a
+                className={styles.traceLink}
+                href={invoice.trace_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Langfuse trace"
+              >
+                Langfuse trace <ExternalLink size={13} aria-hidden="true" />
+              </a>
+            )}
           </p>
         </div>
         <div className={styles.headerSummary}>

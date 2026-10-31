@@ -80,6 +80,33 @@ LangGraph worker on its own thread. Files and step records are deleted with
 their Demo Company. This in-process queue is for local development: restarting
 the API loses queued jobs. Deployment will add SQS and S3 (ADR 0001).
 
+## Langfuse Tracing
+
+Tracing is optional. Set `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` in your
+local environment, then restart the API with `docker compose up --build`.
+Never commit these keys or expose the secret key to the browser.
+`LANGFUSE_BASE_URL` defaults to `https://cloud.langfuse.com`; override it for
+another region or a self-hosted Langfuse v4 server (v4.59.0 or newer).
+
+Each agent run creates one trace containing every graph step, ERP tool call,
+Invoice-reading model call, and semantic line-choice model call. Model names,
+input/output token usage, and elapsed time are recorded by the Langfuse
+LangChain integration. Langfuse calculates USD cost from its model definitions;
+custom models need a matching price definition in Langfuse.
+
+The trace URL is saved on the Invoice and shown as **Langfuse trace** in its
+header, opening in a new tab. Failed reads keep a trace, including the final
+In Review outcome and Skipped steps. Concurrent runs have separate traces.
+Seeded sample Invoices have no agent run and no trace link.
+
+With either key missing, or `LANGFUSE_TRACING_ENABLED=false`, new runs continue
+normally without a trace link. A Langfuse project-lookup failure also leaves the
+link empty without preventing an Invoice decision. Events export in the
+background and flush after the worker stops at application shutdown.
+
+Langfuse retains trace data independently of the Demo Company's 24-hour cleanup.
+Choose appropriate access and retention settings in your Langfuse project.
+
 ## Roles and Review Queue
 
 **Viewing as** selects Submitter, Reviewer, or Admin. Each role is one fixed
@@ -103,7 +130,8 @@ omitting it selects Submitter. The Demo Company cookie is still required.
   counts across the Company, with Mine scoped to the current person.
 - `GET /api/invoices/{id}` includes `submitted_by`, `can_decide`,
   `decision_block_reason`, `rejection_reason`, `received_at`, and the saved
-  `auto_approval_limit` used for its decision.
+  `auto_approval_limit` used for its decision. `trace_url` is the saved Langfuse
+  link, or `null` when no link is available.
 - `POST /api/invoices/{id}/approve` approves; `POST /api/invoices/{id}/reject`
   rejects with `{"rejection_reason": "The goods did not arrive."}`. Reasons
   are trimmed and limited to 2,000 characters. Permissions, Company isolation,
@@ -278,6 +306,12 @@ change between upload and decision. Limit API tests cover Admin permissions,
 invalid amounts, Company isolation, zero limits, future decisions, and immutable
 Auto-Approved, Approved, Rejected, and sample decisions.
 
+Tracing tests use the real Langfuse SDK with an in-memory OpenTelemetry exporter
+and a local project response. Both model-provider clients use local HTTP
+responses, so token usage and timing are checked without cloud charges. Tests
+cover a single trace per run, concurrent-run isolation, all steps and ERP calls,
+failed reads, persisted links, disabled configuration, and Langfuse outages.
+
 ```sh
 docker compose run --rm api uv run --locked pytest
 docker compose run --rm api uv run --locked mypy src tests conftest.py
@@ -301,7 +335,7 @@ PLAYWRIGHT_BASE_URL=http://localhost:3000 npm test
 The browser tests cover Invoice selection, Demo Company persistence and expiry,
 upload through the real API and worker, switching from Submitter to Reviewer
 and approving from the Review Queue, the Admin-only limit editor and saved
-decision limit, links to earlier Invoices, and the comparison grid's mismatch
+decision limit, optional Langfuse links, links to earlier Invoices, and the comparison grid's mismatch
 colors, lower-price differences, differently worded paired descriptions and
 mobile layout. The grid rendering check
 uses a fixed HTTP response; processing rules are tested against real Postgres.
