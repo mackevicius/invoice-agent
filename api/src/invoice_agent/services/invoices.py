@@ -103,22 +103,19 @@ class InvoiceProcessing:
         self.line_pairer = line_pairer
         self.tracing = tracing or RunTracing()
         graph = StateGraph(InvoiceRun)
-        graph.add_node("read_invoice", self._read_invoice)
-        graph.add_node("find_supplier", self._find_supplier)
-        graph.add_node("find_purchase_order", self._find_purchase_order)
-        graph.add_node("find_goods_receipt", self._find_goods_receipt)
-        graph.add_node("pair_lines", self._pair_lines)
-        graph.add_node("three_way_match", self._three_way_match)
-        graph.add_node("check_duplicates", self._check_duplicates)
-        graph.add_node("decide", self._decide)
+        graph.add_sequence(
+            [
+                ("read_invoice", self._read_invoice),
+                ("find_supplier", self._find_supplier),
+                ("find_purchase_order", self._find_purchase_order),
+                ("find_goods_receipt", self._find_goods_receipt),
+                ("pair_lines", self._pair_lines),
+                ("three_way_match", self._three_way_match),
+                ("check_duplicates", self._check_duplicates),
+                ("decide", self._decide),
+            ]
+        )
         graph.add_edge(START, "read_invoice")
-        graph.add_edge("read_invoice", "find_supplier")
-        graph.add_edge("find_supplier", "find_purchase_order")
-        graph.add_edge("find_purchase_order", "find_goods_receipt")
-        graph.add_edge("find_goods_receipt", "pair_lines")
-        graph.add_edge("pair_lines", "three_way_match")
-        graph.add_edge("three_way_match", "check_duplicates")
-        graph.add_edge("check_duplicates", "decide")
         graph.add_edge("decide", END)
         self.graph = graph.compile()
 

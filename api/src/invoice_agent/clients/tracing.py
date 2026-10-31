@@ -106,3 +106,4 @@ def configured_tracing() -> RunTracing:
     except Exception:
         logger.exception("Langfuse tracing is unavailable.")
         return RunTracing()
+
