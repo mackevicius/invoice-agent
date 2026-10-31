@@ -4,14 +4,23 @@ from uuid import UUID
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
 
-from invoice_agent.schemas.demo_company import DemoCompany, DemoPerson, DemoRole
-from invoice_agent.services.demo_company import DemoCompanies
+from invoice_agent.schemas.demo_company import (
+    AutoApprovalLimit,
+    DemoCompany,
+    DemoPerson,
+    DemoRole,
+)
+from invoice_agent.services.demo_company import (
+    DemoCompanies,
+    DemoCompanyPermissionDenied,
+)
 
 
 def create_demo_company_router(
     companies: DemoCompanies, cookie_secure: bool
 ) -> APIRouter:
     router = APIRouter(prefix="/api/demo-company", tags=["Demo Company"])
+    current_person = require_demo_person(companies)
 
     @router.post("")
     def start_demo_company(
@@ -43,6 +52,28 @@ def create_demo_company_router(
             samesite="lax",
         )
         return started.company
+
+    @router.get("/auto-approval-limit")
+    def get_auto_approval_limit(
+        person: Annotated[DemoPerson, Depends(current_person)],
+    ) -> AutoApprovalLimit:
+        limit = companies.get_auto_approval_limit(person.company_id)
+        if limit is None:
+            raise HTTPException(status_code=401, detail="Start a Demo Company first.")
+        return limit
+
+    @router.put("/auto-approval-limit")
+    def set_auto_approval_limit(
+        limit: AutoApprovalLimit,
+        person: Annotated[DemoPerson, Depends(current_person)],
+    ) -> AutoApprovalLimit:
+        try:
+            saved = companies.set_auto_approval_limit(person, limit)
+        except DemoCompanyPermissionDenied as error:
+            raise HTTPException(status_code=403, detail=str(error)) from error
+        if saved is None:
+            raise HTTPException(status_code=401, detail="Start a Demo Company first.")
+        return saved
 
     return router
 

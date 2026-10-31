@@ -9,7 +9,15 @@ from psycopg.rows import dict_row
 
 from invoice_agent.clients.embeddings import TextEmbeddings
 from invoice_agent.db.seed import SAMPLES, seed_demo_company
-from invoice_agent.schemas.demo_company import DemoCompany
+from invoice_agent.schemas.demo_company import (
+    AutoApprovalLimit,
+    DemoCompany,
+    DemoPerson,
+)
+
+
+class DemoCompanyPermissionDenied(PermissionError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -73,6 +81,39 @@ class DemoCompanies:
                 self.embeddings.model_name if self.embeddings is not None else None,
             )
         return StartedDemoCompany(company, new_token, visitor_id)
+
+    def get_auto_approval_limit(self, company_id: UUID) -> AutoApprovalLimit | None:
+        with psycopg.connect(self.database_url) as connection:
+            company = connection.execute(
+                """SELECT auto_approval_limit, currency FROM demo_companies
+                   WHERE id = %s AND expires_at > %s""",
+                (company_id, datetime.now(UTC)),
+            ).fetchone()
+        return (
+            None
+            if company is None
+            else AutoApprovalLimit(amount=company[0], currency=company[1])
+        )
+
+    def set_auto_approval_limit(
+        self, person: DemoPerson, limit: AutoApprovalLimit
+    ) -> AutoApprovalLimit | None:
+        if person.role != "Admin":
+            raise DemoCompanyPermissionDenied(
+                "Only an Admin can change the Auto-Approval Limit."
+            )
+        with psycopg.connect(self.database_url) as connection:
+            company = connection.execute(
+                """UPDATE demo_companies SET auto_approval_limit = %s
+                   WHERE id = %s AND expires_at > %s
+                   RETURNING auto_approval_limit, currency""",
+                (limit.amount, person.company_id, datetime.now(UTC)),
+            ).fetchone()
+        return (
+            None
+            if company is None
+            else AutoApprovalLimit(amount=company[0], currency=company[1])
+        )
 
     def identify(self, token: str | None) -> UUID | None:
         if token is None:

@@ -63,12 +63,10 @@ def test_quantity_rules_and_partial_deliveries(
 
     result = process_invoice(fields)
 
-    assert result.status == "In Review"
-    assert result.reasons == (
-        [f"Line 1 (Recycled A4 paper, box): {reason}" for reason in expected_reasons]
-        if expected_reasons
-        else ["All checks passed"]
-    )
+    assert result.status == ("In Review" if expected_reasons else "Auto-Approved")
+    assert result.reasons == [
+        f"Line 1 (Recycled A4 paper, box): {reason}" for reason in expected_reasons
+    ]
     comparison = result.comparison[0]
     assert comparison.quantity_passed is (not expected_reasons)
     assert comparison.price_passed is True

@@ -43,6 +43,7 @@ const invoiceDetailSchema = invoiceHeaderSchema.extend({
   filename: z.string().nullable(),
   submitted_by: z.string(),
   rejection_reason: z.string().nullable(),
+  auto_approval_limit: decimalSchema.nullable(),
   can_decide: z.boolean(),
   decision_block_reason: z.string().nullable(),
   fields: z

@@ -112,8 +112,10 @@ def seed_demo_company(
         connection.execute(
             """INSERT INTO invoices
                (id, company_id, supplier_id, supplier_name, invoice_number, total,
-                status, issued_on, created_at)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                status, issued_on, created_at, auto_approval_limit)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+                       (SELECT auto_approval_limit FROM demo_companies
+                        WHERE id = %s))""",
             (
                 invoice_id,
                 company_id,
@@ -124,6 +126,7 @@ def seed_demo_company(
                 status,
                 created_at.date(),
                 created_at,
+                company_id,
             ),
         )
         connection.execute(

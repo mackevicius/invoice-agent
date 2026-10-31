@@ -56,7 +56,7 @@ def test_same_supplier_and_invoice_number_is_a_duplicate(
                 "and was received within 30 days."
             ],
         ),
-        (timedelta(days=30, seconds=1), ["All checks passed"]),
+        (timedelta(days=30, seconds=1), []),
     ],
     ids=["inside-30-days", "exactly-30-days", "outside-30-days"],
 )
@@ -80,7 +80,7 @@ def test_possible_duplicate_uses_when_the_earlier_invoice_was_received(
             matching_fields.model_copy(update={"invoice_number": "INV-RENUMBERED"})
         )
 
-    assert result.status == "In Review"
+    assert result.status == ("In Review" if expected_reasons else "Auto-Approved")
     assert result.reasons == expected_reasons
     assert result.steps[6].status == "Completed"
 
@@ -187,7 +187,8 @@ def test_invoice_is_not_its_own_duplicate(
 ) -> None:
     result = process_invoice(matching_fields)
 
-    assert result.reasons == ["All checks passed"]
+    assert result.status == "Auto-Approved"
+    assert result.reasons == []
     assert result.steps[6].outputs == {"duplicates": []}
 
 
@@ -228,7 +229,8 @@ def test_different_number_and_total_is_not_a_possible_duplicate(
         )
     )
 
-    assert result.reasons == ["All checks passed"]
+    assert result.status == "Auto-Approved"
+    assert result.reasons == []
     assert result.steps[6].outputs == {"duplicates": []}
 
 
@@ -246,7 +248,8 @@ def test_later_invoice_is_not_an_earlier_duplicate(
 
     result = process_invoice(matching_fields)
 
-    assert result.reasons == ["All checks passed"]
+    assert result.status == "Auto-Approved"
+    assert result.reasons == []
     assert result.steps[6].outputs == {"duplicates": []}
 
 
@@ -268,7 +271,8 @@ def test_duplicate_checks_do_not_cross_suppliers(
 
     result = process_invoice(matching_fields)
 
-    assert result.reasons == ["All checks passed"]
+    assert result.status == "Auto-Approved"
+    assert result.reasons == []
     assert result.steps[6].outputs == {"duplicates": []}
 
 
@@ -298,7 +302,8 @@ def test_duplicate_checks_do_not_cross_demo_companies(
 
     result = processing.process(company_id, uploaded.id)
 
-    assert result.reasons == ["All checks passed"]
+    assert result.status == "Auto-Approved"
+    assert result.reasons == []
     assert result.steps[6].outputs == {"duplicates": []}
 
 

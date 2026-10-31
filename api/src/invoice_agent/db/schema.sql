@@ -12,6 +12,9 @@ ALTER TABLE demo_companies ADD COLUMN IF NOT EXISTS visitor_id UUID;
 UPDATE demo_companies SET visitor_id = id WHERE visitor_id IS NULL;
 ALTER TABLE demo_companies ALTER COLUMN visitor_id SET NOT NULL;
 
+ALTER TABLE demo_companies ADD COLUMN IF NOT EXISTS auto_approval_limit
+    NUMERIC(14, 2) NOT NULL DEFAULT 5000 CHECK (auto_approval_limit >= 0);
+
 CREATE INDEX IF NOT EXISTS demo_companies_expiry ON demo_companies(expires_at);
 
 CREATE TABLE IF NOT EXISTS daily_ai_usage (
@@ -112,7 +115,9 @@ ALTER TABLE invoices
     ADD COLUMN IF NOT EXISTS reasons JSONB NOT NULL DEFAULT '[]',
     ADD COLUMN IF NOT EXISTS comparison JSONB NOT NULL DEFAULT '[]',
     ADD COLUMN IF NOT EXISTS submitted_by TEXT NOT NULL DEFAULT 'submitter',
-    ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+    ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+    ADD COLUMN IF NOT EXISTS auto_approval_limit NUMERIC(14, 2)
+        CHECK (auto_approval_limit >= 0);
 
 ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_currency_check;
 ALTER TABLE invoices ADD CONSTRAINT invoices_currency_check

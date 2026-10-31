@@ -222,6 +222,7 @@ class InvoiceProcessing:
                           total, invoice.currency, status, issued_on,
                           file_name AS filename, read_fields AS fields, reasons,
                           comparison, submitted_by, rejection_reason,
+                             invoice.auto_approval_limit,
                           invoice.created_at AS received_at
                    FROM invoices AS invoice
                    JOIN demo_companies AS company ON company.id = invoice.company_id
@@ -275,8 +276,16 @@ class InvoiceProcessing:
         invoice = self._require(person.company_id, invoice_id)
         self._check_decision_permission(person, invoice)
         with psycopg.connect(self.database_url) as connection:
+            company = connection.execute(
+                """SELECT auto_approval_limit FROM demo_companies
+                   WHERE id = %s AND expires_at > %s FOR SHARE""",
+                (person.company_id, datetime.now(UTC)),
+            ).fetchone()
+            if company is None:
+                raise InvoiceNotFound("Demo Company not found.")
             updated = connection.execute(
-                """UPDATE invoices SET status = %s, rejection_reason = %s
+                """UPDATE invoices SET status = %s, rejection_reason = %s,
+                          auto_approval_limit = %s
                    WHERE company_id = %s AND id = %s AND status = 'In Review'
                      AND submitted_by <> %s
                      AND NOT EXISTS (
@@ -290,6 +299,7 @@ class InvoiceProcessing:
                 (
                     decision,
                     rejection_reason,
+                    company[0],
                     person.company_id,
                     invoice_id,
                     person.id,
@@ -786,33 +796,79 @@ class InvoiceProcessing:
             return state
         comparison = state.get("comparison")
         company_id, invoice_id = state["company_id"], state["invoice_id"]
+        invoice = self._require(company_id, invoice_id)
         matching_reasons = state.get("record_reasons", []) + [
             reason for line in comparison or [] for reason in line.reasons
         ]
-        if not self._start_step(
-            company_id,
-            invoice_id,
-            "Decide",
-            {
-                "three_way_match_passed": comparison is not None
-                and not matching_reasons,
-                "duplicate_check_passed": not duplicate_reasons,
-            },
-        ):
-            return state
-        reasons = matching_reasons + duplicate_reasons
-        reasons = reasons or ["All checks passed"]
-        self._complete_step(
-            company_id,
-            invoice_id,
-            "Decide",
-            {"status": "In Review", "reasons": list(reasons)},
-        )
-        self._send_to_review(
-            company_id,
-            invoice_id,
-            reasons,
-        )
+        three_way_match_passed = comparison is not None and not matching_reasons
+        with psycopg.connect(self.database_url) as connection:
+            company = connection.execute(
+                """SELECT auto_approval_limit, currency FROM demo_companies
+                   WHERE id = %s AND expires_at > %s FOR SHARE""",
+                (company_id, datetime.now(UTC)),
+            ).fetchone()
+            if company is None:
+                raise InvoiceNotFound("Demo Company not found.")
+            limit, currency = company
+            claimed = connection.execute(
+                """UPDATE invoice_steps SET status = 'Running', inputs = %s,
+                          started_at = %s
+                   WHERE company_id = %s AND invoice_id = %s
+                     AND name = 'Decide' AND status = 'Pending'
+                   RETURNING invoice_id""",
+                (
+                    Jsonb(
+                        {
+                            "three_way_match_passed": three_way_match_passed,
+                            "duplicate_check_passed": not duplicate_reasons,
+                            "total": str(invoice.total),
+                            "currency": invoice.currency,
+                            "auto_approval_limit": str(limit),
+                            "auto_approval_currency": currency,
+                        }
+                    ),
+                    datetime.now(UTC),
+                    company_id,
+                    invoice_id,
+                ),
+            ).fetchone()
+            if claimed is None:
+                return state
+            reasons = matching_reasons + duplicate_reasons
+            if invoice.currency != currency:
+                reasons.append(
+                    f"Invoice currency {invoice.currency} does not match "
+                    f"the Demo Company currency {currency}."
+                )
+            elif invoice.total is None or invoice.total >= limit:
+                reasons.append(
+                    "Invoice total is at or above the Auto-Approval Limit of "
+                    f"{currency} {limit:,.2f}."
+                )
+            status = (
+                "Auto-Approved"
+                if three_way_match_passed and not reasons
+                else "In Review"
+            )
+            connection.execute(
+                """UPDATE invoices SET status = %s, reasons = %s,
+                          auto_approval_limit = %s
+                   WHERE company_id = %s AND id = %s""",
+                (status, Jsonb(reasons), limit, company_id, invoice_id),
+            )
+            connection.execute(
+                """UPDATE invoice_steps SET status = 'Completed', outputs = %s,
+                          completed_at = %s
+                   WHERE company_id = %s AND invoice_id = %s AND name = 'Decide'""",
+                (
+                    Jsonb({"status": status, "reasons": reasons}),
+                    datetime.now(UTC),
+                    company_id,
+                    invoice_id,
+                ),
+            )
+            if reasons:
+                _skip_pending_steps(connection, company_id, invoice_id, reasons[0])
         return state
 
     def _start_step(

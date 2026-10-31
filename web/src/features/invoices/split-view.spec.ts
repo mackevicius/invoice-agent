@@ -36,10 +36,95 @@ test('a visitor selects an Invoice and returns to the same Demo Company', async 
   await page.reload();
 
   await expect(detail.getByRole('heading', { name: 'INV-1042' })).toBeVisible();
+  await expect(detail.getByLabel('Auto-Approval Limit used')).toContainText(
+    '5,000.00',
+  );
   expect(
     (await context.cookies()).find((cookie) => cookie.name === 'demo_company')
       ?.value,
   ).toBe(session?.value);
+
+  const limit = sidebar.getByRole('spinbutton', {
+    name: 'Auto-Approval Limit',
+  });
+  await expect(limit).toHaveCount(0);
+  await roleSwitch
+    .getByRole('button', { name: 'Reviewer', exact: true })
+    .click();
+  await expect(limit).toHaveCount(0);
+  await roleSwitch.getByRole('button', { name: 'Admin', exact: true }).click();
+  await expect(limit).toHaveValue('5000.00');
+  const save = sidebar.getByRole('button', { name: 'Save limit' });
+  await expect(save).toBeDisabled();
+
+  let releaseRead!: () => void;
+  const readReleased = new Promise<void>((resolve) => {
+    releaseRead = resolve;
+  });
+  let readStarted!: () => void;
+  const readReady = new Promise<void>((resolve) => {
+    readStarted = resolve;
+  });
+  await page.route('**/api/demo-company/auto-approval-limit', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    readStarted();
+    await readReleased;
+    await route.fulfill({ response });
+  });
+  const backgroundRead = page.waitForRequest(
+    (request) =>
+      request.url().endsWith('/api/demo-company/auto-approval-limit') &&
+      request.method() === 'GET',
+  );
+  await roleSwitch
+    .getByRole('button', { name: 'Reviewer', exact: true })
+    .click();
+  await roleSwitch.getByRole('button', { name: 'Admin', exact: true }).click();
+  const heldRequest = await backgroundRead;
+  await readReady;
+
+  await limit.fill('2500.50');
+  const savedResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/demo-company/auto-approval-limit') &&
+      response.request().method() === 'PUT',
+  );
+  await save.click();
+  const saved = await savedResponse;
+  expect(saved.status()).toBe(200);
+  expect(saved.request().headers()['x-demo-role']).toBe('Admin');
+  expect(await saved.json()).toEqual({ amount: '2500.50', currency: 'EUR' });
+  await expect(save).toBeDisabled();
+  releaseRead();
+  const oldResponse = await heldRequest.response();
+  if (oldResponse) await oldResponse.finished();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+  await expect(limit).toHaveValue('2500.50');
+  await expect(sidebar.getByRole('status')).toContainText('2,500.50');
+  await expect(detail.getByLabel('Auto-Approval Limit used')).toContainText(
+    '5,000.00',
+  );
+  await page.unroute('**/api/demo-company/auto-approval-limit');
+
+  await page.reload();
+  await expect(limit).toHaveCount(0);
+  await roleSwitch.getByRole('button', { name: 'Admin', exact: true }).click();
+  await expect(limit).toHaveValue('2500.50');
+
+  const listBounds = await sidebar
+    .getByRole('navigation', { name: 'Invoice list' })
+    .boundingBox();
+  expect(listBounds?.height).toBeGreaterThanOrEqual(88);
+
   expect(
     await page.evaluate(
       () =>
@@ -67,6 +152,27 @@ test('a visitor selects an Invoice and returns to the same Demo Company', async 
     path: testInfo.outputPath('split-view.png'),
     fullPage: true,
   });
+  if (isMobile) {
+    await page.setViewportSize({ width: 600, height: 400 });
+    const shortDetailBounds = await detail.boundingBox();
+    expect(shortDetailBounds?.height).toBeGreaterThanOrEqual(160);
+    await limit.scrollIntoViewIfNeeded();
+    await expect(limit).toBeInViewport();
+    const heading = detail.getByRole('heading', { name: 'INV-1042' });
+    await heading.scrollIntoViewIfNeeded();
+    await expect(heading).toBeInViewport();
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(false);
+    await page.screenshot({
+      path: testInfo.outputPath('short-admin.png'),
+      fullPage: true,
+    });
+  }
 });
 
 test('a Submitter uploads an unknown Supplier Invoice and a Reviewer approves it', async ({

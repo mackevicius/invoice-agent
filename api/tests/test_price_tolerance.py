@@ -40,9 +40,9 @@ def test_price_tolerance_and_visible_difference(
 
     result = process_invoice(fields)
 
-    assert result.status == "In Review"
+    assert result.status == ("Auto-Approved" if price_passed else "In Review")
     assert result.reasons == (
-        ["All checks passed"]
+        []
         if price_passed
         else [
             "Line 1 (Recycled A4 paper, box): unit price is more than 2% "

@@ -30,7 +30,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { startDemoCompany } from '@/features/demo-company/api';
+import {
+  getAutoApprovalLimit,
+  startDemoCompany,
+} from '@/features/demo-company/api';
+import { AutoApprovalLimitEditor } from '@/features/demo-company/auto-approval-limit';
 import { ApiError, DemoCompanyExpiredError } from '@/lib/api';
 import {
   demoRoles,
@@ -86,6 +90,11 @@ export function SplitView() {
     staleTime: Infinity,
   });
   const companyId = demoCompany.data?.id;
+  const approvalLimit = useQuery({
+    queryKey: ['demo-company', companyId, 'auto-approval-limit'],
+    queryFn: ({ signal }) => getAutoApprovalLimit(signal),
+    enabled: companyId !== undefined && role === 'Admin',
+  });
   const invoiceCounts = useQuery({
     queryKey: ['invoices', companyId, 'counts', role],
     queryFn: ({ signal }) => getInvoiceCounts(signal, role),
@@ -142,6 +151,7 @@ export function SplitView() {
     invoiceList.error ??
     invoiceCounts.error ??
     invoice.error ??
+    (role === 'Admin' ? approvalLimit.error : null) ??
     sessionError;
   const loading =
     !demoCompany.isError && (invoiceList.isPending || invoiceCounts.isPending);
@@ -188,7 +198,10 @@ export function SplitView() {
 
   function refresh() {
     void queryClient.resetQueries({
-      queryKey: demoCompany.isError ? ['demo-company'] : ['invoices'],
+      queryKey:
+        demoCompany.isError || approvalLimit.isError
+          ? ['demo-company']
+          : ['invoices'],
     });
   }
 
@@ -280,7 +293,7 @@ export function SplitView() {
   }
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-role={role}>
       <aside className={styles.sidebar} aria-label="Invoices">
         <header className={styles.brand}>
           <span className={styles.brandMark}>
@@ -421,22 +434,33 @@ export function SplitView() {
         </nav>
 
         <footer className={styles.companyFooter}>
-          <Clock3 aria-hidden="true" size={14} />
-          {company ? (
-            <span>
-              Expires{' '}
-              <time dateTime={company.expires_at}>
-                {new Intl.DateTimeFormat('en-GB', {
-                  day: 'numeric',
-                  month: 'short',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }).format(new Date(company.expires_at))}
-              </time>
-            </span>
-          ) : (
-            <span>Demo Company</span>
+          {role === 'Admin' && companyId && (
+            <AutoApprovalLimitEditor
+              key={companyId}
+              companyId={companyId}
+              limit={approvalLimit.data}
+              disabled={Boolean(error)}
+              onExpired={setSessionError}
+            />
           )}
+          <div className={styles.companyExpiry}>
+            <Clock3 aria-hidden="true" size={14} />
+            {company ? (
+              <span>
+                Expires{' '}
+                <time dateTime={company.expires_at}>
+                  {new Intl.DateTimeFormat('en-GB', {
+                    day: 'numeric',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }).format(new Date(company.expires_at))}
+                </time>
+              </span>
+            ) : (
+              <span>Demo Company</span>
+            )}
+          </div>
         </footer>
       </aside>
 

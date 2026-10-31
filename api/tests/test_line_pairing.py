@@ -34,7 +34,8 @@ def test_differently_worded_lines_are_paired_by_meaning(
     assert comparison.purchase_order.description == "Recycled A4 paper, box"
     assert comparison.invoice.description == description
     assert comparison.paired_by == "meaning"
-    assert result.reasons == ["All checks passed"]
+    assert result.status == "Auto-Approved"
+    assert result.reasons == []
 
 
 def test_unavailable_model_leaves_the_line_unpaired_with_a_clear_reason(
@@ -96,7 +97,8 @@ def test_model_chooses_from_ranked_candidates_not_just_the_nearest(
 
     assert result.comparison[0].purchase_order is not None
     assert result.comparison[0].purchase_order.description == purchase_description
-    assert result.reasons == ["All checks passed"]
+    assert result.status == "Auto-Approved"
+    assert result.reasons == []
     step = next(step for step in result.steps if step.name == "Pair Lines")
     assert step.outputs is not None
     searches = step.outputs["candidate_searches"]
@@ -178,7 +180,8 @@ def test_existing_lines_are_reembedded_when_the_embedding_model_changes(
 
     assert result.comparison[0].purchase_order is not None
     assert result.comparison[0].purchase_order.description == "Recycled A4 paper, box"
-    assert result.reasons == ["All checks passed"]
+    assert result.status == "Auto-Approved"
+    assert result.reasons == []
     assert processing.get(matching_company, uploaded.id) == result
 
 
@@ -255,7 +258,8 @@ def test_semantic_candidates_stay_inside_the_named_purchase_order_and_company(
     candidate = candidates[0]
     assert isinstance(candidate, dict)
     assert candidate["description"] == "Recycled A4 paper, box"
-    assert result.reasons == ["All checks passed"]
+    assert result.status == "Auto-Approved"
+    assert result.reasons == []
 
 
 def test_semantic_choices_do_not_override_conflicting_item_codes(
@@ -362,7 +366,7 @@ def test_only_clearly_corresponding_lines_are_paired(
 
     result = process_invoice(matching_fields.model_copy(update={"lines": [line]}))
 
-    assert result.status == "In Review"
+    assert result.status == ("In Review" if paired_by is None else "Auto-Approved")
     comparison = result.comparison[0]
     assert comparison.paired_by == paired_by
     if paired_by is None:
@@ -375,7 +379,7 @@ def test_only_clearly_corresponding_lines_are_paired(
     else:
         assert comparison.purchase_order is not None
         assert comparison.purchase_order.item_code == "PAPER-A4"
-        assert result.reasons == ["All checks passed"]
+        assert result.reasons == []
 
 
 def test_every_failure_is_reported_across_invoice_lines(
@@ -433,8 +437,8 @@ def test_identical_description_resolves_a_repeated_item_code(
 
     result = process_invoice(matching_fields.model_copy(update={"lines": [line]}))
 
-    assert result.status == "In Review"
-    assert result.reasons == ["All checks passed"]
+    assert result.status == "Auto-Approved"
+    assert result.reasons == []
     assert result.comparison[0].paired_by == "description"
     assert result.comparison[0].purchase_order is not None
     assert result.comparison[0].purchase_order.description == "Recycled A4 paper, box"

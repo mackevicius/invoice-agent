@@ -406,6 +406,14 @@ export function InvoiceDetails({
           <dt>Currency</dt>
           <dd>{invoice.currency}</dd>
         </div>
+        {invoice.auto_approval_limit !== null && (
+          <div>
+            <dt>Auto-Approval Limit used</dt>
+            <dd aria-label="Auto-Approval Limit used">
+              {money({ total: invoice.auto_approval_limit, currency: 'EUR' })}
+            </dd>
+          </div>
+        )}
       </dl>
 
       {invoice.fields && (

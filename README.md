@@ -4,9 +4,9 @@ Checks supplier Invoices against Purchase Orders and Goods Receipts.
 Visitors get a private, seeded Demo Company and can upload an Invoice to watch
 its fields being read, its Supplier looked up, and its Three-Way Match in the
 Split view. No model calls are needed to browse the samples. Uploaded Invoices
-finish In Review with every failed check listed, or **All checks passed** until
-Auto-Approval is implemented. Known Suppliers are checked for Duplicate Invoices
-and Possible Duplicates.
+are Auto-Approved only when every rule passes and the total is under the
+Auto-Approval Limit. Otherwise they finish In Review with every failed check
+listed. Known Suppliers are checked for Duplicate Invoices and Possible Duplicates.
 
 ## Run Locally
 
@@ -102,7 +102,8 @@ omitting it selects Submitter. The Demo Company cookie is still required.
 - `GET /api/invoices/counts` returns `all`, `mine`, `review_queue`, and `done`
   counts across the Company, with Mine scoped to the current person.
 - `GET /api/invoices/{id}` includes `submitted_by`, `can_decide`,
-  `decision_block_reason`, `rejection_reason`, and `received_at`.
+  `decision_block_reason`, `rejection_reason`, `received_at`, and the saved
+  `auto_approval_limit` used for its decision.
 - `POST /api/invoices/{id}/approve` approves; `POST /api/invoices/{id}/reject`
   rejects with `{"rejection_reason": "The goods did not arrive."}`. Reasons
   are trimmed and limited to 2,000 characters. Permissions, Company isolation,
@@ -192,8 +193,8 @@ failures leave the line unpaired with a clear review reason.
 The model reads the Invoice and chooses line pairs; it does not compute pass/fail
 or decide the Invoice Status. The Pair Lines step saves the candidates and chosen
 pairs. The grid retains the original Invoice description beside the chosen
-Purchase Order description. Successful checks still finish In Review with
-**All checks passed**. Duplicate checks run even when matching fails or the
+Purchase Order description. Successful checks are considered for Auto-Approval
+by the rules below. Duplicate checks run even when matching fails or the
 Purchase Order is missing.
 
 In fake mode, semantic choices default to none. Set `INVOICE_FAKE_LINE_CHOICES`
@@ -225,6 +226,30 @@ its record in the detail pane; the link also works in a new tab. Matching and
 duplicate reasons appear together. An unavailable history lookup fails the
 Check Duplicates step and sends the Invoice to review with a clear reason.
 
+## Auto-Approval
+
+The agent Auto-Approves only for a known Supplier, a passing Three-Way Match,
+no Duplicate Invoice or Possible Duplicate, and a total strictly under the
+Auto-Approval Limit. The default is **EUR 5,000.00**. A total equal to or above
+the limit goes In Review with a reason, alongside every matching or duplicate
+failure. An Invoice in another currency also requires review. Reading and line
+pairing can use the model; the final decision is always computed in code.
+
+Only **Admin** sees the Auto-Approval Limit editor in the sidebar footer.
+Amounts must be non-negative and have at most two decimal places. Setting the
+limit to `0` disables Auto-Approval.
+
+- `GET /api/demo-company/auto-approval-limit` returns the Company's current
+  setting, such as `{"amount": "5000.00", "currency": "EUR"}`.
+- `PUT /api/demo-company/auto-approval-limit` accepts `{"amount": "2500.50"}`
+  with `X-Demo-Role: Admin`. The API refuses Submitter and Reviewer changes.
+
+The agent reads the limit when it decides, not when the Invoice is uploaded.
+The limit and decision are saved together, and the Invoice detail shows the
+saved amount. Reviewer Approve and Reject decisions also record the current
+limit. Later limit changes never alter Auto-Approved, Approved, or Rejected
+Invoices, and the agent's recorded steps remain unchanged.
+
 ## Checks and Tests
 
 API tests use real Postgres with pgvector and a separate, disposable schema per
@@ -246,6 +271,12 @@ provider is contacted.
 Role and Review Queue tests exercise permissions, uploader tracking, final
 decisions, required Rejection Reasons, view filters, and counts through the
 HTTP API.
+
+Auto-Approval tests cover the strict amount boundary, unknown Suppliers,
+Possible Duplicates, currency mismatches, combined review reasons, and a limit
+change between upload and decision. Limit API tests cover Admin permissions,
+invalid amounts, Company isolation, zero limits, future decisions, and immutable
+Auto-Approved, Approved, Rejected, and sample decisions.
 
 ```sh
 docker compose run --rm api uv run --locked pytest
@@ -269,7 +300,8 @@ PLAYWRIGHT_BASE_URL=http://localhost:3000 npm test
 
 The browser tests cover Invoice selection, Demo Company persistence and expiry,
 upload through the real API and worker, switching from Submitter to Reviewer
-and approving from the Review Queue, links to earlier Invoices, and the comparison grid's mismatch
+and approving from the Review Queue, the Admin-only limit editor and saved
+decision limit, links to earlier Invoices, and the comparison grid's mismatch
 colors, lower-price differences, differently worded paired descriptions and
 mobile layout. The grid rendering check
 uses a fixed HTTP response; processing rules are tested against real Postgres.
