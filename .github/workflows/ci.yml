@@ -34,11 +34,11 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://invoice:invoice@127.0.0.1:55432/invoice
         run: ./scripts/check.sh
-      - name: Upload reading accuracy results
+      - name: Upload evaluation results
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: reading-accuracy
+          name: invoice-evaluations
           path: api/evals/results/*.json
           if-no-files-found: ignore
           retention-days: 30

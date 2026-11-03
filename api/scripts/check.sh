@@ -9,3 +9,4 @@ uv run --locked mypy src evals tests conftest.py
 uv run --locked pytest
 uv run --locked python -m evals.reading --check
 uv run --locked python -m evals.reading --sample-dir evals/data/generated-v1 --check
+uv run --locked python -m evals.decisions --check

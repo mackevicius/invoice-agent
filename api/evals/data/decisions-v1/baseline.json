@@ -1,0 +1,66 @@
+{
+  "sample_version": "synthetic-decisions-v1",
+  "model": "fake-decision-v1",
+  "correct": 14,
+  "total": 14,
+  "accuracy": 1.0,
+  "wrong_auto_approvals": 0,
+  "decisions": {
+    "clean-auto-approval": { "status": "Auto-Approved", "reasons": [] },
+    "price-over-tolerance": {
+      "status": "In Review",
+      "reasons": [
+        "Line 1 (Recycled A4 paper, box): unit price is more than 2% above the Purchase Order."
+      ]
+    },
+    "lower-price": { "status": "Auto-Approved", "reasons": [] },
+    "quantity-mismatch": {
+      "status": "In Review",
+      "reasons": [
+        "Line 1 (Recycled A4 paper, box): invoiced quantity does not equal received quantity."
+      ]
+    },
+    "partial-delivery": { "status": "Auto-Approved", "reasons": [] },
+    "received-more-than-ordered": {
+      "status": "In Review",
+      "reasons": [
+        "Line 1 (Recycled A4 paper, box): received quantity exceeds the Purchase Order quantity."
+      ]
+    },
+    "wording-differences": { "status": "Auto-Approved", "reasons": [] },
+    "missing-purchase-order": {
+      "status": "In Review",
+      "reasons": ["No Purchase Order is named on this Invoice."]
+    },
+    "missing-goods-receipt": {
+      "status": "In Review",
+      "reasons": ["No Goods Receipt was found for Purchase Order PO-1002."]
+    },
+    "duplicate-invoice": {
+      "status": "In Review",
+      "reasons": ["Duplicate Invoice: INV-0309 was already received."]
+    },
+    "possible-duplicate": {
+      "status": "In Review",
+      "reasons": [
+        "Possible Duplicate: INV-0309 has the same total and was received within 30 days."
+      ]
+    },
+    "unknown-supplier": {
+      "status": "In Review",
+      "reasons": ["Unknown Supplier"]
+    },
+    "total-over-limit": {
+      "status": "In Review",
+      "reasons": [
+        "Invoice total is at or above the Auto-Approval Limit of EUR 5,000.00."
+      ]
+    },
+    "unmatched-line": {
+      "status": "In Review",
+      "reasons": [
+        "Line 1 (Extra packing charge): no paired Purchase Order line."
+      ]
+    }
+  }
+}

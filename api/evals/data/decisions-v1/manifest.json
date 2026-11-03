@@ -1,0 +1,223 @@
+{
+  "version": "synthetic-decisions-v1",
+  "model": "fake-decision-v1",
+  "base_invoice": {
+    "supplier_name": "Paper & Co.",
+    "invoice_number": "EVAL-DECISION",
+    "purchase_order_number": "PO-1002",
+    "issued_on": "2026-10-20",
+    "currency": "EUR",
+    "lines": [
+      {
+        "description": "Recycled A4 paper, box",
+        "quantity": "24",
+        "unit_price": "111.60"
+      }
+    ],
+    "subtotal": "2678.40",
+    "tax": "535.68",
+    "total": "3214.08"
+  },
+  "cases": [
+    {
+      "case_id": "clean-auto-approval",
+      "expected": { "status": "Auto-Approved", "reasons": [] }
+    },
+    {
+      "case_id": "price-over-tolerance",
+      "invoice_updates": {
+        "lines": [
+          {
+            "description": "Recycled A4 paper, box",
+            "quantity": "24",
+            "unit_price": "120.00"
+          }
+        ],
+        "subtotal": "2880.00",
+        "tax": "576.00",
+        "total": "3456.00"
+      },
+      "expected": {
+        "status": "In Review",
+        "reasons": [
+          "Line 1 (Recycled A4 paper, box): unit price is more than 2% above the Purchase Order."
+        ]
+      }
+    },
+    {
+      "case_id": "lower-price",
+      "invoice_updates": {
+        "lines": [
+          {
+            "description": "Recycled A4 paper, box",
+            "quantity": "24",
+            "unit_price": "111.00"
+          }
+        ],
+        "subtotal": "2664.00",
+        "tax": "532.80",
+        "total": "3196.80"
+      },
+      "expected": { "status": "Auto-Approved", "reasons": [] }
+    },
+    {
+      "case_id": "quantity-mismatch",
+      "invoice_updates": {
+        "lines": [
+          {
+            "description": "Recycled A4 paper, box",
+            "quantity": "25",
+            "unit_price": "111.60"
+          }
+        ],
+        "subtotal": "2790.00",
+        "tax": "558.00",
+        "total": "3348.00"
+      },
+      "expected": {
+        "status": "In Review",
+        "reasons": [
+          "Line 1 (Recycled A4 paper, box): invoiced quantity does not equal received quantity."
+        ]
+      }
+    },
+    {
+      "case_id": "partial-delivery",
+      "received_quantity": "6",
+      "invoice_updates": {
+        "lines": [
+          {
+            "description": "Recycled A4 paper, box",
+            "quantity": "6",
+            "unit_price": "111.60"
+          }
+        ],
+        "subtotal": "669.60",
+        "tax": "133.92",
+        "total": "803.52"
+      },
+      "expected": { "status": "Auto-Approved", "reasons": [] }
+    },
+    {
+      "case_id": "received-more-than-ordered",
+      "received_quantity": "25",
+      "invoice_updates": {
+        "lines": [
+          {
+            "description": "Recycled A4 paper, box",
+            "quantity": "25",
+            "unit_price": "111.60"
+          }
+        ],
+        "subtotal": "2790.00",
+        "tax": "558.00",
+        "total": "3348.00"
+      },
+      "expected": {
+        "status": "In Review",
+        "reasons": [
+          "Line 1 (Recycled A4 paper, box): received quantity exceeds the Purchase Order quantity."
+        ]
+      }
+    },
+    {
+      "case_id": "wording-differences",
+      "invoice_updates": {
+        "lines": [
+          {
+            "description": "A4 recycled paper in boxes",
+            "quantity": "24",
+            "unit_price": "111.60"
+          }
+        ]
+      },
+      "pairing_choices": {
+        "A4 recycled paper in boxes": "Recycled A4 paper, box"
+      },
+      "expected": { "status": "Auto-Approved", "reasons": [] }
+    },
+    {
+      "case_id": "missing-purchase-order",
+      "invoice_updates": { "purchase_order_number": null },
+      "expected": {
+        "status": "In Review",
+        "reasons": ["No Purchase Order is named on this Invoice."]
+      }
+    },
+    {
+      "case_id": "missing-goods-receipt",
+      "received_quantity": null,
+      "expected": {
+        "status": "In Review",
+        "reasons": ["No Goods Receipt was found for Purchase Order PO-1002."]
+      }
+    },
+    {
+      "case_id": "duplicate-invoice",
+      "invoice_updates": { "invoice_number": "INV-0309" },
+      "expected": {
+        "status": "In Review",
+        "reasons": ["Duplicate Invoice: INV-0309 was already received."]
+      }
+    },
+    {
+      "case_id": "possible-duplicate",
+      "invoice_updates": { "tax": "0.00", "total": "2678.40" },
+      "expected": {
+        "status": "In Review",
+        "reasons": [
+          "Possible Duplicate: INV-0309 has the same total and was received within 30 days."
+        ]
+      }
+    },
+    {
+      "case_id": "unknown-supplier",
+      "invoice_updates": { "supplier_name": "Unknown business" },
+      "expected": { "status": "In Review", "reasons": ["Unknown Supplier"] }
+    },
+    {
+      "case_id": "total-over-limit",
+      "invoice_updates": {
+        "supplier_name": "Byteworks IT",
+        "purchase_order_number": "PO-1003",
+        "lines": [
+          {
+            "description": "27-inch monitors",
+            "quantity": "8",
+            "unit_price": "1080.00"
+          }
+        ],
+        "subtotal": "8640.00",
+        "tax": "1728.00",
+        "total": "10368.00"
+      },
+      "expected": {
+        "status": "In Review",
+        "reasons": [
+          "Invoice total is at or above the Auto-Approval Limit of EUR 5,000.00."
+        ]
+      }
+    },
+    {
+      "case_id": "unmatched-line",
+      "invoice_updates": {
+        "lines": [
+          {
+            "description": "Extra packing charge",
+            "quantity": "1",
+            "unit_price": "3.00"
+          }
+        ],
+        "subtotal": "3.00",
+        "tax": "0.00",
+        "total": "3.00"
+      },
+      "expected": {
+        "status": "In Review",
+        "reasons": [
+          "Line 1 (Extra packing charge): no paired Purchase Order line."
+        ]
+      }
+    }
+  ]
+}

@@ -368,7 +368,7 @@ This uses a scripted fake with deliberate mistakes: a wrong total, a wrong
 quantity, and an unreadable Invoice. Its **71.11% (32/45)** baseline proves the
 scorer catches errors; it is not a measurement of a real model. CI runs the same
 command and fails if any field score or the overall score changes. Reports are
-saved under `api/evals/results/` and uploaded as the `reading-accuracy` CI
+saved under `api/evals/results/` and uploaded as the `invoice-evaluations` CI
 artifact, including failed baseline checks. Each run gets its own file.
 
 The separate [generated sample](api/evals/data/generated-v1/README.md) adds two
@@ -393,6 +393,34 @@ Only annotated fields are scored; absent labels do not become errors. This tiny
 sample is a repeatable check, not a representative quality estimate, and some
 source images may be synthetic. Real-model runs and cost/time reporting are
 left to the separate cost/time ticket.
+
+## Decision Accuracy
+
+The decision eval runs 14 fixed synthetic cases through the same Process an
+Invoice interface as the app, using real Postgres and scripted model responses.
+It covers clean Auto-Approval, prices above tolerance and below the Purchase
+Order, quantity mismatches, partial deliveries, excess receipts, different
+wording, missing Purchase Orders and Goods Receipts, both duplicate rules,
+unknown Suppliers, the Auto-Approval Limit, and unmatched lines.
+
+```sh
+docker compose run --rm api uv run --locked python -m evals.decisions --check
+```
+
+The baseline is **14/14 (100%)** with **zero wrong Auto-Approvals**. A decision
+counts as correct only when its Invoice Status and every review reason match
+the case's labels. Each case gets an isolated Demo Company; model responses
+are scripted, but matching and decisions use the application's real rules.
+
+Any wrong Auto-Approval fails the command, even without `--check` and even if
+the saved baseline accepts it. With `--check`, changes to scores, case IDs,
+statuses, or reasons also fail. Reports retain the date, model, sample checksum,
+and expected and actual decisions under `api/evals/results/`, including failed
+checks. CI runs this gate and archives reports in `invoice-evaluations`.
+
+See the [case and baseline notes](api/evals/data/decisions-v1/README.md) before
+updating the sample or baseline. These cases prove deterministic decision
+behavior, not real-model reading or pairing accuracy.
 
 ## Layout
 

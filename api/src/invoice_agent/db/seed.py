@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from psycopg import Connection
@@ -134,4 +135,23 @@ def seed_demo_company(
                (id, company_id, invoice_id, description, quantity, unit_price)
                VALUES (%s, %s, %s, %s, %s, %s)""",
             (uuid4(), company_id, invoice_id, description, quantity, price),
+        )
+
+
+def configure_decision_receipt(
+    connection: Connection[tuple[object, ...]],
+    company_id: UUID,
+    quantity: Decimal | None,
+) -> None:
+    if quantity is None:
+        connection.execute(
+            "DELETE FROM goods_receipt_lines WHERE company_id = %s", (company_id,)
+        )
+        connection.execute(
+            "DELETE FROM goods_receipts WHERE company_id = %s", (company_id,)
+        )
+    else:
+        connection.execute(
+            "UPDATE goods_receipt_lines SET quantity = %s WHERE company_id = %s",
+            (quantity, company_id),
         )
