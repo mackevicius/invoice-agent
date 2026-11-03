@@ -139,6 +139,8 @@ def test_eval_command_scores_and_saves_the_fixed_sample(
     assert saved["overall"]["correct"] == 32
     assert saved["overall"]["total"] == 45
     assert saved["overall"]["accuracy"] == pytest.approx(32 / 45)
+    assert saved["average_cost_usd"] is None
+    assert saved["average_time_seconds"] is None
     assert len(saved["invoices"]) == 3
     assert saved["invoices"][2]["actual"] is None
 

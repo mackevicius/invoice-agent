@@ -12,9 +12,18 @@ from uuid import UUID, uuid4
 import psycopg
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
-from invoice_agent.clients.embeddings import ScriptedEmbeddings
+from evals.reporting import (
+    EvaluationReport,
+    InvoiceMetrics,
+    average,
+    collect_metrics,
+    process_for_report,
+)
+from evals.runtime import LiveEvaluation, evaluation_arguments, live_evaluation
+from invoice_agent.clients.embeddings import ScriptedEmbeddings, TextEmbeddings
 from invoice_agent.clients.invoice_reader import ScriptedInvoiceReader
 from invoice_agent.clients.line_pairing import ScriptedLinePairer
+from invoice_agent.clients.tracing import RunTracing
 from invoice_agent.db.initialize import initialize_database
 from invoice_agent.db.seed import configure_decision_receipt
 from invoice_agent.schemas.invoice_fields import InvoiceFields
@@ -61,7 +70,7 @@ class DecisionCase:
     expected_reasons: list[str]
 
 
-class InvoiceDecision(BaseModel):
+class InvoiceDecision(InvoiceMetrics):
     case_id: str
     invoice_id: UUID
     expected_status: str
@@ -71,11 +80,8 @@ class InvoiceDecision(BaseModel):
     correct: bool
 
 
-class DecisionReport(BaseModel):
-    evaluated_at: datetime
-    sample_version: str
-    sample_sha256: str | None = None
-    model: str
+class DecisionReport(EvaluationReport):
+    scoring_version: str = "decision-outcomes-v1"
     correct: int
     total: int
     accuracy: float
@@ -106,11 +112,15 @@ def evaluate_decisions(
     invoices: list[InvoiceDecision] = []
     for case in cases:
         uploaded = processing.upload(company_id, case.document)
-        result = processing.process(company_id, uploaded.id)
+        result, generation_count = process_for_report(
+            processing, company_id, uploaded.id
+        )
         invoices.append(
             InvoiceDecision(
                 case_id=case.case_id,
                 invoice_id=result.id,
+                trace_url=result.trace_url,
+                generation_count=generation_count,
                 expected_status=case.expected_status,
                 actual_status=result.status,
                 expected_reasons=case.expected_reasons,
@@ -121,6 +131,7 @@ def evaluate_decisions(
                 ),
             )
         )
+    collect_metrics(invoices, processing.tracing)
     return _build_report(invoices, sample_version=sample_version, model=model)
 
 
@@ -132,6 +143,8 @@ def _build_report(
         evaluated_at=datetime.now(UTC),
         sample_version=sample_version,
         model=model,
+        average_cost_usd=average([invoice.cost_usd for invoice in invoices]),
+        average_time_seconds=average([invoice.time_seconds for invoice in invoices]),
         correct=correct,
         total=len(invoices),
         accuracy=correct / len(invoices),
@@ -148,20 +161,25 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Score synthetic Invoice decisions.")
     parser.add_argument("--sample-dir", type=Path, default=DEFAULT_SAMPLE)
     parser.add_argument("--output-dir", type=Path, default=Path("evals/results"))
-    parser.add_argument(
-        "--check", action="store_true", help="Check the saved baseline."
-    )
-    arguments = parser.parse_args(argv)
+    arguments = evaluation_arguments(parser, argv)
     database_url = os.environ.get("TEST_DATABASE_URL")
     if not database_url:
         parser.error("Set TEST_DATABASE_URL to a Postgres database with pgvector.")
+    tracing = RunTracing()
     try:
         manifest_bytes = (arguments.sample_dir / "manifest.json").read_bytes()
         sample = DecisionSample.model_validate_json(manifest_bytes)
         if len({case.case_id for case in sample.cases}) != len(sample.cases):
             raise ValueError("Decision sample case IDs must be unique.")
+        live: LiveEvaluation | None = None
+        embeddings: TextEmbeddings = ScriptedEmbeddings()
+        model = sample.model
+        if arguments.provider != "fake":
+            live = live_evaluation(arguments.provider, arguments.model)
+            embeddings = live.embeddings
+            tracing = live.tracing
+            model = live.model
         initialize_database(database_url)
-        embeddings = ScriptedEmbeddings()
         companies = DemoCompanies(database_url, embeddings)
         erp_tools = ERPTools(database_url, embeddings)
         invoices: list[InvoiceDecision] = []
@@ -180,7 +198,12 @@ def main(argv: list[str] | None = None) -> int:
                 reader=ScriptedInvoiceReader(fields),
                 erp_tools=erp_tools,
                 daily_ai_limit=DailyAILimit(database_url),
-                line_pairer=ScriptedLinePairer(case.pairing_choices),
+                line_pairer=(
+                    live.line_pairer
+                    if live
+                    else ScriptedLinePairer(case.pairing_choices)
+                ),
+                tracing=tracing,
             )
             report = evaluate_decisions(
                 processing,
@@ -198,12 +221,11 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 ],
                 sample_version=sample.version,
-                model=sample.model,
+                model=model,
             )
             invoices.extend(report.invoices)
-        report = _build_report(
-            invoices, sample_version=sample.version, model=sample.model
-        )
+        report = _build_report(invoices, sample_version=sample.version, model=model)
+        report.provider = arguments.provider
         report.sample_sha256 = sha256(manifest_bytes).hexdigest()
         arguments.output_dir.mkdir(parents=True, exist_ok=True)
         timestamp = report.evaluated_at.strftime("%Y%m%dT%H%M%S%fZ")
@@ -219,6 +241,7 @@ def main(argv: list[str] | None = None) -> int:
         if report.wrong_auto_approvals:
             print("Wrong Auto-Approvals must be zero.", file=sys.stderr)
             return 1
+        report.require_measurements()
         if arguments.check:
             baseline = DecisionBaseline.model_validate_json(
                 (arguments.sample_dir / "baseline.json").read_bytes()
@@ -249,6 +272,8 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError) as error:
         print(f"Decision evaluation failed: {error}", file=sys.stderr)
         return 1
+    finally:
+        tracing.close()
 
 
 if __name__ == "__main__":

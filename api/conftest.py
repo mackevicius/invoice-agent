@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Callable, Iterator
 from datetime import date
 from decimal import Decimal
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 from time import monotonic, sleep
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
@@ -43,6 +46,86 @@ def erp_tools(database_url: str, embeddings: ScriptedEmbeddings) -> ERPTools:
     from invoice_agent.services.erp_tools import ERPTools
 
     return ERPTools(database_url, embeddings)
+
+
+@pytest.fixture
+def model_api() -> Iterator[tuple[str, list[dict[str, object]]]]:
+    responses: list[dict[str, object]] = []
+
+    class ModelHandler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            length = int(self.headers.get("Content-Length", "0"))
+            request = json.loads(self.rfile.read(length))
+            tool = request["tools"][0]
+            arguments = responses.pop(0)
+            if "function" in tool:
+                response = {
+                    "id": "chatcmpl-test",
+                    "object": "chat.completion",
+                    "created": 1793433600,
+                    "model": request["model"],
+                    "choices": [
+                        {
+                            "index": 0,
+                            "finish_reason": "tool_calls",
+                            "message": {
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": [
+                                    {
+                                        "id": "call-test",
+                                        "type": "function",
+                                        "function": {
+                                            "name": tool["function"]["name"],
+                                            "arguments": json.dumps(arguments),
+                                        },
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 20,
+                        "completion_tokens": 10,
+                        "total_tokens": 30,
+                    },
+                }
+            else:
+                response = {
+                    "id": "msg-test",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": request["model"],
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu-test",
+                            "name": tool["name"],
+                            "input": arguments,
+                        }
+                    ],
+                    "stop_reason": "tool_use",
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": 20, "output_tokens": 10},
+                }
+            body = json.dumps(response).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: object) -> None:
+            pass
+
+    with ThreadingHTTPServer(("127.0.0.1", 0), ModelHandler) as server:
+        server_thread = Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+        try:
+            yield f"http://127.0.0.1:{server.server_port}", responses
+        finally:
+            server.shutdown()
+            server_thread.join()
 
 
 @pytest.fixture

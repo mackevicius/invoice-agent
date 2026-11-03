@@ -1,0 +1,84 @@
+name: Real-model evaluations
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Model provider
+        required: true
+        type: choice
+        options:
+          - openai
+          - anthropic
+      model:
+        description: Model override (empty uses the provider default)
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evaluations-${{ github.ref }}-${{ inputs.provider }}
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: api
+    env:
+      TEST_DATABASE_URL: postgresql://invoice:invoice@127.0.0.1:55432/invoice
+      EVAL_PROVIDER: ${{ inputs.provider }}
+      INVOICE_MODEL: ${{ inputs.model }}
+      INVOICE_AI_DAILY_VISITOR_LIMIT: '100'
+      INVOICE_AI_DAILY_GLOBAL_LIMIT: '100'
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+      LANGFUSE_BASE_URL: ${{ vars.LANGFUSE_BASE_URL || 'https://cloud.langfuse.com' }}
+      LANGFUSE_TRACING_ENABLED: 'true'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+      - name: Start Postgres with pgvector
+        working-directory: .
+        run: docker compose up -d --wait db
+      - name: Install Python dependencies
+        id: install
+        run: uv sync --locked --python 3.12
+      - name: Evaluate labelled Invoice reading
+        run: uv run --locked python -m evals.reading --provider "$EVAL_PROVIDER"
+      - name: Evaluate generated PNG and PDF reading
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: >-
+          uv run --locked python -m evals.reading
+          --sample-dir evals/data/generated-v1 --provider "$EVAL_PROVIDER"
+      - name: Evaluate Invoice decisions
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: uv run --locked python -m evals.decisions --provider "$EVAL_PROVIDER"
+      - name: Summarize saved reports
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          reports=(evals/results/*.json)
+          if (( ${#reports[@]} )); then
+            uv run --locked python -m evals.compare "${reports[@]}" \
+              | tee evals/results/comparison.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload evaluation results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: invoice-evaluations-${{ inputs.provider }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: api/evals/results/
+          if-no-files-found: warn
+          retention-days: 30

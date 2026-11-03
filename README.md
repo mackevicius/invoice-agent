@@ -391,8 +391,8 @@ individual contents use [DbCL 1.0](https://opendatacommons.org/licenses/dbcl/1-0
 See the [sample attribution and scoring notes](api/evals/data/reading-v1/README.md).
 Only annotated fields are scored; absent labels do not become errors. This tiny
 sample is a repeatable check, not a representative quality estimate, and some
-source images may be synthetic. Real-model runs and cost/time reporting are
-left to the separate cost/time ticket.
+source images may be synthetic. Use the live evaluations below to measure a
+real model's accuracy, cost and time.
 
 ## Decision Accuracy
 
@@ -421,6 +421,69 @@ checks. CI runs this gate and archives reports in `invoice-evaluations`.
 See the [case and baseline notes](api/evals/data/decisions-v1/README.md) before
 updating the sample or baseline. These cases prove deterministic decision
 behavior, not real-model reading or pairing accuracy.
+
+## Live Model Evaluations
+
+Eval commands default to the fake model, regardless of `INVOICE_MODEL_PROVIDER`.
+Paid calls require an explicit `--provider openai` or `--provider anthropic`.
+`--model` overrides `INVOICE_MODEL`; without either, the defaults are
+`gpt-4.1-mini` and `claude-haiku-4-5-20251001`. `--check` is fake-only.
+
+Live runs need the chosen provider's `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`,
+both `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY`, and enabled tracing.
+`LANGFUSE_BASE_URL` selects the Langfuse region or server. Configure model
+pricing in Langfuse for custom model names.
+
+```sh
+docker compose run --rm api uv run --locked python -m evals.reading --provider openai --model gpt-4.1-mini
+docker compose run --rm api uv run --locked python -m evals.decisions --provider openai --model gpt-4.1-mini
+```
+
+Reading uses the real vision reader. Decisions keep the labelled Invoice fields
+and use real model line pairing, so document-reading errors do not obscure the
+decision score. Both use local embeddings and the same Process an Invoice
+interface as the app. Live evals create Demo Companies, Invoices and usage in
+`TEST_DATABASE_URL`; use a dedicated evaluation database. The usual daily AI
+limits still apply.
+
+Each JSON report includes provider, model, date, sample checksum and scoring
+version, plus a trace link, USD cost and elapsed seconds for each Invoice.
+Cost sums the Langfuse generation and embedding observations; time is the
+completed root **Invoice run** span, not just model latency. Report averages
+include every evaluated Invoice. Fake runs have `null` measurements, not zero.
+Missing traces or pricing also stay `null`, with `metrics_error` explaining why;
+live commands save those reports and fail rather than report a partial average.
+The collector flushes tracing, follows observation pages and retries delayed
+or unavailable trace data for up to 60 seconds per Invoice. It records the
+actual model-call count and waits for those generation observations before
+accepting a cost, so a partially ingested trace cannot look like a free run.
+An Invoice that genuinely makes no model calls can still have zero cost.
+
+### Manual CI
+
+In GitHub Actions, choose **Real-model evaluations**, then **Run workflow**.
+Select the provider and optionally a model. Add the provider API key and both
+Langfuse keys as repository secrets first; set the optional repository variable
+`LANGFUSE_BASE_URL` for another Langfuse region or server.
+
+The [manual workflow](.github/workflows/evaluate.yml) runs both reading samples
+and all decision cases against a fresh Postgres database. It keeps running the
+other evals after a failure, retains the wrong-Auto-Approval gate, and uploads
+JSON reports plus a comparison summary in an `invoice-evaluations-<provider>-...`
+artifact for 30 days. Normal push and pull-request CI stays fake and free.
+
+### Comparing Models
+
+Download artifacts from different runs into the same results directory, then run:
+
+```sh
+docker compose run --rm api uv run --locked python -m evals.compare evals/results
+```
+
+File paths also work. The Markdown tables put models side by side for accuracy,
+wrong Auto-Approvals, average cost and average time. Only reports with the same
+eval kind, sample version, checksum and scoring version share a table; different
+samples remain separate. Missing measurements are shown as unavailable.
 
 ## Layout
 

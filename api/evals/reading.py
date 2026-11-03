@@ -10,7 +10,18 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_serializer
 
-from invoice_agent.clients.embeddings import ScriptedEmbeddings
+from evals.reporting import (
+    EvaluationReport,
+    InvoiceMetrics,
+    average,
+    collect_metrics,
+    process_for_report,
+)
+from evals.runtime import evaluation_arguments, live_evaluation
+from invoice_agent.clients.embeddings import ScriptedEmbeddings, TextEmbeddings
+from invoice_agent.clients.invoice_reader import InvoiceReader
+from invoice_agent.clients.line_pairing import LinePairer
+from invoice_agent.clients.tracing import RunTracing
 from invoice_agent.db.initialize import initialize_database
 from invoice_agent.schemas.invoice_fields import InvoiceFields
 from invoice_agent.schemas.invoices import InvoiceFile
@@ -69,7 +80,7 @@ class Accuracy(BaseModel):
         }
 
 
-class InvoiceAccuracy(BaseModel):
+class InvoiceAccuracy(InvoiceMetrics):
     case_id: str
     invoice_id: UUID
     expected: ReadingLabels
@@ -77,13 +88,9 @@ class InvoiceAccuracy(BaseModel):
     errors: list[str]
 
 
-class ReadingReport(BaseModel):
-    evaluated_at: datetime
-    sample_version: str
-    sample_sha256: str | None = None
+class ReadingReport(EvaluationReport):
     sample_source: dict[str, JsonValue] | None = None
     scoring_version: str = "reading-fields-v1"
-    model: str
     per_field: dict[str, Accuracy]
     overall: Accuracy
     invoices: list[InvoiceAccuracy]
@@ -200,7 +207,9 @@ def evaluate_reading(
 
     for case in cases:
         uploaded = processing.upload(company_id, case.document)
-        result = processing.process(company_id, uploaded.id)
+        result, generation_count = process_for_report(
+            processing, company_id, uploaded.id
+        )
         errors: list[str] = []
 
         expected_values: dict[str, object] = case.expected.model_dump()
@@ -247,15 +256,20 @@ def evaluate_reading(
             InvoiceAccuracy(
                 case_id=case.case_id,
                 invoice_id=result.id,
+                trace_url=result.trace_url,
+                generation_count=generation_count,
                 expected=case.expected,
                 actual=result.fields,
                 errors=errors,
             )
         )
+    collect_metrics(invoices, processing.tracing)
     return ReadingReport(
         evaluated_at=datetime.now(UTC),
         sample_version=sample_version,
         model=model,
+        average_cost_usd=average([invoice.cost_usd for invoice in invoices]),
+        average_time_seconds=average([invoice.time_seconds for invoice in invoices]),
         per_field=scores,
         overall=Accuracy(
             correct=sum(score.correct for score in scores.values()),
@@ -278,35 +292,56 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Score labelled Invoice reading.")
     parser.add_argument("--sample-dir", type=Path, default=DEFAULT_SAMPLE)
     parser.add_argument("--output-dir", type=Path, default=Path("evals/results"))
-    parser.add_argument("--check", action="store_true", help="Check the fake baseline.")
-    arguments = parser.parse_args(argv)
+    arguments = evaluation_arguments(parser, argv)
     database_url = os.environ.get("TEST_DATABASE_URL")
     if not database_url:
         parser.error("Set TEST_DATABASE_URL to a Postgres database with pgvector.")
+    tracing = RunTracing()
     try:
         sample = load_reading_sample(arguments.sample_dir)
-        fake = FakeReadingFixture.model_validate_json(
-            (arguments.sample_dir / "fake.json").read_bytes()
-        )
-        if fake.responses.keys() != {case.document.filename for case in sample.cases}:
-            raise ValueError("Fake responses must cover exactly the reading sample.")
+        fake: FakeReadingFixture | None = None
+        embeddings: TextEmbeddings
+        reader: InvoiceReader
+        line_pairer: LinePairer | None = None
+        if arguments.provider == "fake":
+            fake = FakeReadingFixture.model_validate_json(
+                (arguments.sample_dir / "fake.json").read_bytes()
+            )
+            if fake.responses.keys() != {
+                case.document.filename for case in sample.cases
+            }:
+                raise ValueError(
+                    "Fake responses must cover exactly the reading sample."
+                )
+            embeddings = ScriptedEmbeddings()
+            reader = SampleInvoiceReader(fake.responses)
+            model = fake.model
+        else:
+            live = live_evaluation(arguments.provider, arguments.model)
+            embeddings = live.embeddings
+            reader = live.reader
+            line_pairer = live.line_pairer
+            tracing = live.tracing
+            model = live.model
         initialize_database(database_url)
-        embeddings = ScriptedEmbeddings()
         erp_tools = ERPTools(database_url, embeddings)
         company = DemoCompanies(database_url, embeddings).start(None).company
         processing = InvoiceProcessing(
             database_url,
-            reader=SampleInvoiceReader(fake.responses),
+            reader=reader,
             erp_tools=erp_tools,
             daily_ai_limit=DailyAILimit(database_url),
+            line_pairer=line_pairer,
+            tracing=tracing,
         )
         report = evaluate_reading(
             processing,
             company.id,
             sample.cases,
             sample_version=sample.version,
-            model=fake.model,
+            model=model,
         )
+        report.provider = arguments.provider
         report.sample_sha256 = sample.sha256
         report.sample_source = sample.source
         path = save_reading_report(report, arguments.output_dir)
@@ -317,9 +352,14 @@ def main(argv: list[str] | None = None) -> int:
             f"({report.overall.accuracy or 0:.2%})"
         )
         print(f"Saved: {path}")
-        if arguments.check and (
-            report.per_field != fake.expected_per_field
-            or report.overall != fake.expected_overall
+        report.require_measurements()
+        if (
+            arguments.check
+            and fake is not None
+            and (
+                report.per_field != fake.expected_per_field
+                or report.overall != fake.expected_overall
+            )
         ):
             print(
                 "Fake reading scores do not match the saved baseline.", file=sys.stderr
@@ -329,6 +369,8 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError) as error:
         print(f"Reading evaluation failed: {error}", file=sys.stderr)
         return 1
+    finally:
+        tracing.close()
 
 
 if __name__ == "__main__":
