@@ -29,24 +29,11 @@ jobs:
       - name: Install Python dependencies
         working-directory: api
         run: uv sync --locked --python 3.12
-      - name: Check Python
-        working-directory: api
-        run: |
-          uv run --locked ruff check .
-          uv run --locked ruff format --check .
-          uv run --locked mypy src evals tests conftest.py
-      - name: Test the HTTP API against Postgres
+      - name: Check and test the API
         working-directory: api
         env:
           TEST_DATABASE_URL: postgresql://invoice:invoice@127.0.0.1:55432/invoice
-        run: uv run --locked pytest
-      - name: Check reading accuracy with the fake model
-        working-directory: api
-        env:
-          TEST_DATABASE_URL: postgresql://invoice:invoice@127.0.0.1:55432/invoice
-        run: |
-          uv run --locked python -m evals.reading --check
-          uv run --locked python -m evals.reading --sample-dir evals/data/generated-v1 --check
+        run: ./scripts/check.sh
       - name: Upload reading accuracy results
         if: always()
         uses: actions/upload-artifact@v6
@@ -61,8 +48,7 @@ jobs:
       - name: Check and build the web app
         working-directory: web
         run: |
-          npm run typecheck
-          npm run lint
+          npm run check
           npm run build
       - name: Start the API and production web app
         env:

@@ -6,7 +6,8 @@ Infer the repository from `git remote -v`. Without a remote, ask for `owner/repo
 ## Operations
 
 - Publish: `gh issue create --title "..." --body "..."`. Use a heredoc for multiline bodies.
-- Fetch: `gh issue view <number> --comments`; also fetch labels.
+- Fetch: `gh issue view <number> --json number,title,body,labels,comments,state`. `--comments` cannot be combined with `--json`.
+- Parent spec: issue #1 ("Spec: Invoice Agent"). Fetch it once per task in full; child issues refer to its sections.
 - List: `gh issue list --state open --json number,title,body,labels,comments`. Filter with `--label` and `--state` as needed.
 - Comment: `gh issue comment <number> --body "..."`
 - Labels: `gh issue edit <number> --add-label "..."` or `--remove-label "..."`

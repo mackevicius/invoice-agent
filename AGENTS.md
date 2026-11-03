@@ -14,7 +14,7 @@ Single-context: root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md` b
 
 ## Code layout
 
-- **API (`api/`)**: organise by **layer**: `routes/` (HTTP: endpoints, cookies, status codes), `schemas/` (data shapes), `services/` (business logic and SQL), `clients/` (outside systems: AI models, ERP), `workers/` (background jobs), `db/` (schema and seed). A feature keeps the same file name in each layer. Follow the import rule in ADR 0004. Tests live in `api/tests/`.
-- **Web (`web/`)**: organise by **feature** (Invoice reading, matching, Review Queue, ERP tools). Each feature folder holds its code and its tests.
-- Build **deep modules**: a small interface over a lot of behaviour. Split a file when it holds two reasons to change; a long file with one job stays whole.
-- Group tests by **behaviour** seen through the seam (e.g. Price Tolerance, Duplicate Invoice, Auto-Approval), one file per behaviour, with shared builders for test data.
+- **API (`api/`)**: by layer: `routes/`, `schemas/`, `services/`, `clients/`, `workers/`, `db/`; tests in `api/tests/`. A feature keeps the same file name in each layer. The Process an Invoice graph is `services/invoice_processing.py`.
+- **Web (`web/src/features/`)**: by feature (`invoices/`, `demo-company/`), each folder holding its code and tests. See `web/AGENTS.md` before UI work.
+- **Checks**: `docker compose exec -T api scripts/check.sh` and `npm --prefix web run check` (on the host: the web container cannot see the root Prettier config). CI runs the same.
+- **Review rules**: `CODING_STANDARDS.md`.

@@ -50,7 +50,8 @@ is selected automatically. Its fields and saved agent steps refresh once a
 second while it is Processing. Unreadable files finish In Review with a reason.
 
 Compose defaults to `INVOICE_MODEL_PROVIDER=openai`. Set `OPENAI_API_KEY` in your
-local environment before uploading with the real model. To use Anthropic, set
+local environment, or copy `.env.example` to `.env` and fill it in, before
+uploading with the real model. To use Anthropic, set
 `ANTHROPIC_API_KEY` and restart with:
 
 ```sh
@@ -312,13 +313,19 @@ responses, so token usage and timing are checked without cloud charges. Tests
 cover a single trace per run, concurrent-run isolation, all steps and ERP calls,
 failed reads, persisted links, disabled configuration, and Langfuse outages.
 
+With the stack running, run every check CI runs except the build and browser
+tests:
+
 ```sh
-docker compose run --rm api uv run --locked pytest
-docker compose run --rm api uv run --locked mypy src evals tests conftest.py
-docker compose run --rm api uv run --locked ruff check .
-docker compose run --rm api uv run --locked ruff format --check .
-docker compose exec web npm run typecheck
-docker compose exec web npm run lint
+docker compose exec -T api scripts/check.sh
+npm --prefix web run check
+```
+
+To format staged files on every commit, enable the pre-commit hook once per
+clone. It needs `npm --prefix web ci` and `uv sync --directory api` on the host.
+
+```sh
+git config core.hooksPath .githooks
 ```
 
 To compile production assets and run the browser tests, install Node.js 24 and
@@ -396,7 +403,8 @@ each layer, for example `routes/invoices.py`, `schemas/invoices.py` and
 - `api/src/invoice_agent/routes/`: HTTP endpoints, cookies and status codes.
 - `api/src/invoice_agent/schemas/`: shapes of data in and out.
 - `api/src/invoice_agent/services/`: business rules and SQL: Demo Company
-  sessions, the Process an Invoice graph, Invoice lookups and ERP Tools.
+  sessions, the Process an Invoice graph (`invoice_processing.py`), Invoice
+  lookups and Reviewer decisions (`invoices.py`) and ERP Tools.
 - `api/src/invoice_agent/clients/`: Invoice readers for AI models, the fake
   reader and its response fixture.
 - `api/src/invoice_agent/workers/`: local Invoice queue and worker thread.
@@ -404,6 +412,8 @@ each layer, for example `routes/invoices.py`, `schemas/invoices.py` and
   script, and Demo Company sample data.
 - `api/tests/`: API tests, one file per behaviour.
 - `web/src/features/invoices/`: API client, Split view, and its browser test.
+- `web/src/features/demo-company/`: Demo Company expiry and the Auto-Approval
+  Limit editor.
 - `web/src/components/ui/`: generated shadcn/ui components.
 
 The browser reaches only the HTTP API through a same-origin Next.js rewrite.

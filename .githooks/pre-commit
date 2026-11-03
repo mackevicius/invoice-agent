@@ -1,0 +1,24 @@
+#!/bin/sh
+# Formats staged files the way CI checks them. Enable once: git config core.hooksPath .githooks
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+
+prettier=web/node_modules/.bin/prettier
+ruff=api/.venv/bin/ruff
+
+staged() {
+  git diff --cached --name-only --diff-filter=ACMR -z -- "$@"
+}
+
+if [ -n "$(staged ':!*.py' | tr -d '\0')" ]; then
+  [ -x "$prettier" ] || { echo "pre-commit: run 'npm --prefix web ci' first." >&2; exit 1; }
+  staged ':!*.py' | xargs -0 "$prettier" --write --ignore-unknown --log-level warn
+  staged ':!*.py' | xargs -0 git add --
+fi
+
+if [ -n "$(staged '*.py' | tr -d '\0')" ]; then
+  [ -x "$ruff" ] || { echo "pre-commit: run 'uv sync --directory api' first." >&2; exit 1; }
+  staged '*.py' | xargs -0 "$ruff" check --fix --select I --quiet
+  staged '*.py' | xargs -0 "$ruff" format --quiet
+  staged '*.py' | xargs -0 git add --
+fi
