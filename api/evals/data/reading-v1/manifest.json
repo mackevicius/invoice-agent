@@ -1,0 +1,118 @@
+{
+  "version": "kaggle-ocr-v3-first3-v1",
+  "source": {
+    "title": "High-Quality Invoice Images for OCR",
+    "creator": "osama hosam Abdellatif",
+    "url": "https://www.kaggle.com/datasets/osamahosamabdellatif/high-quality-invoice-images-for-ocr",
+    "dataset_version": 3,
+    "image_directory": "batch_1/batch_1/batch1_1",
+    "labels_file": "batch_1/batch_1/batch1_1.csv",
+    "labels_file_sha256": "2480ee3ffc40578f954d02649147fd09be97795ed3290f8e56a7f8807a886477",
+    "database_license": "ODbL-1.0",
+    "contents_license": "DbCL-1.0"
+  },
+  "cases": [
+    {
+      "case_id": "batch1-0001",
+      "filename": "batch1-0001.jpg",
+      "sha256": "56238d4d934c433c24e53d0674f0530e11024f284e8ffcb3bb0bcc0d58850740",
+      "expected": {
+        "supplier_name": "Andrews, Kirby and Valdez",
+        "invoice_number": "51109338",
+        "issued_on": "2013-04-13",
+        "lines": [
+          {
+            "description": "CLEARANCE! Fast Dell Desktop Computer PC DUAL CORE WINDOWS 10 4/8/16GB RAM",
+            "quantity": "3.00"
+          },
+          {
+            "description": "HP T520 Thin Client Computer AMD GX-212JC 1.2GHz 4GB RAM TESTED !! READ BELOW!!",
+            "quantity": "5.00"
+          },
+          {
+            "description": "gaming pc desktop computer",
+            "quantity": "1.00"
+          },
+          {
+            "description": "12-Core Gaming Computer Desktop PC Tower Affordable GAMING PC 8GB AMD Vega RGB",
+            "quantity": "3.00"
+          },
+          {
+            "description": "Custom Build Dell Optiplex 9020 MT i5-4570 3.20GHz Desktop Computer PC",
+            "quantity": "5.00"
+          },
+          {
+            "description": "Dell Optiplex 990 MT Computer PC Quad Core i7 3.4GHz 16GB 2TB HD Windows 10 Pro",
+            "quantity": "4.00"
+          },
+          {
+            "description": "Dell Core 2 Duo Desktop Computer | Windows XP Pro | 4GB | 500GB",
+            "quantity": "5.00"
+          }
+        ],
+        "tax": "564.02",
+        "total": "6204.19"
+      }
+    },
+    {
+      "case_id": "batch1-0002",
+      "filename": "batch1-0002.jpg",
+      "sha256": "862f7d313f1233f3e44a89610a4015d861dc771ad2ba8028ad56e2d4fd37ac71",
+      "expected": {
+        "supplier_name": "Fitzpatrick and Sons",
+        "invoice_number": "12847181",
+        "issued_on": "2012-03-03",
+        "lines": [
+          {
+            "description": "HP Desktop Computer PC Core i5 16GB 2TB HD 256GB SSD 22\" LCD Windows 10",
+            "quantity": "4.00"
+          },
+          {
+            "description": "CUSTOM BUILT AMD RYZEN THREADRIPPER GAMING COMPUTER, 32 GB RAM,",
+            "quantity": "3.00"
+          },
+          {
+            "description": "Fast Dell Optiplex Desktop PC Computer Dual Core 3.4Ghz 8GB 1TB Win 10 Pro WIFI",
+            "quantity": "1.00"
+          },
+          {
+            "description": "Dell Optiplex 790 Computer i7 @3.40 Ghz Quad Core 250GB 4GB Working",
+            "quantity": "3.00"
+          },
+          {
+            "description": "Vintage Microsolutions Pentium 133mhz Desktop Tower PC Windows 95 5.25 Floppy",
+            "quantity": "2.00"
+          }
+        ],
+        "tax": "623.68",
+        "total": "6860.45"
+      }
+    },
+    {
+      "case_id": "batch1-0003",
+      "filename": "batch1-0003.jpg",
+      "sha256": "807a6b0b942eb2ce406db3c57a833bba539e165017c81e2b1a0a98104d213677",
+      "expected": {
+        "supplier_name": "Palmer Ltd",
+        "invoice_number": "19471831",
+        "issued_on": "2014-04-09",
+        "lines": [
+          {
+            "description": "15\"x15\" White Decorative Coffee Table Top L\u00e1pis Lazuli Marquetery Patio D\u00e9cor",
+            "quantity": "3.00"
+          },
+          {
+            "description": "4'x2' Marble Dining Table Top Pietra Dura Birds Inlay Art Furniture Decors B444",
+            "quantity": "5.00"
+          },
+          {
+            "description": "60 Inches Marble Dinning Table Top Hand Inlaid Garden Table with Gemstones",
+            "quantity": "5.00"
+          }
+        ],
+        "tax": "4067.78",
+        "total": "44745.59"
+      }
+    }
+  ]
+}

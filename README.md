@@ -314,7 +314,7 @@ failed reads, persisted links, disabled configuration, and Langfuse outages.
 
 ```sh
 docker compose run --rm api uv run --locked pytest
-docker compose run --rm api uv run --locked mypy src tests conftest.py
+docker compose run --rm api uv run --locked mypy src evals tests conftest.py
 docker compose run --rm api uv run --locked ruff check .
 docker compose run --rm api uv run --locked ruff format --check .
 docker compose exec web npm run typecheck
@@ -343,6 +343,36 @@ CI runs Python
 lint, formatting, types and tests, then web types, lint, a production build, and
 the browser tests against that production build. CI uses the scripted model;
 no cloud credentials or paid services are required.
+
+## Reading Accuracy
+
+The reading eval processes three fixed, labelled Invoice images through the same
+Process an Invoice interface as the app. It reports accuracy for each labelled
+field and overall, then saves a JSON report with the date, model, sample version
+and checksum, source credit, expected and read values, and mistakes.
+
+Run it with one command:
+
+```sh
+docker compose run --rm api uv run --locked python -m evals.reading --check
+```
+
+This uses a scripted fake with deliberate mistakes: a wrong total, a wrong
+quantity, and an unreadable Invoice. Its **71.11% (32/45)** baseline proves the
+scorer catches errors; it is not a measurement of a real model. CI runs the same
+command and fails if any field score or the overall score changes. Reports are
+saved under `api/evals/results/` and uploaded as the `reading-accuracy` CI
+artifact, including failed baseline checks. Each run gets its own file.
+
+Data: [High-Quality Invoice Images for OCR](https://www.kaggle.com/datasets/osamahosamabdellatif/high-quality-invoice-images-for-ocr)
+by **osama hosam Abdellatif**, dataset version **3**. The database and derived
+labels are licensed under [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/);
+individual contents use [DbCL 1.0](https://opendatacommons.org/licenses/dbcl/1-0/).
+See the [sample attribution and scoring notes](api/evals/data/reading-v1/README.md).
+Only annotated fields are scored; absent labels do not become errors. This tiny
+sample is a repeatable check, not a representative quality estimate, and some
+source images may be synthetic. Real-model runs and cost/time reporting are
+left to the separate cost/time ticket.
 
 ## Layout
 

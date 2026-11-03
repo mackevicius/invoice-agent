@@ -1,0 +1,98 @@
+{
+  "model": "fake-reading-v1",
+  "responses": {
+    "batch1-0001.jpg": {
+      "supplier_name": "Andrews, Kirby and Valdez",
+      "invoice_number": "51109338",
+      "issued_on": "2013-04-13",
+      "currency": "USD",
+      "lines": [
+        {
+          "description": "CLEARANCE! Fast Dell Desktop Computer PC DUAL CORE WINDOWS 10 4/8/16GB RAM",
+          "quantity": "3.000",
+          "unit_price": "209.00"
+        },
+        {
+          "description": "HP T520 Thin Client Computer AMD GX-212JC 1.2GHz 4GB RAM TESTED !! READ BELOW!!",
+          "quantity": "5.00",
+          "unit_price": "37.75"
+        },
+        {
+          "description": "gaming pc desktop computer",
+          "quantity": "1.00",
+          "unit_price": "400.00"
+        },
+        {
+          "description": "12-Core Gaming Computer Desktop PC Tower Affordable GAMING PC 8GB AMD Vega RGB",
+          "quantity": "3.00",
+          "unit_price": "464.89"
+        },
+        {
+          "description": "Custom Build Dell Optiplex 9020 MT i5-4570 3.20GHz Desktop Computer PC",
+          "quantity": "5.00",
+          "unit_price": "221.99"
+        },
+        {
+          "description": "Dell Optiplex 990 MT Computer PC Quad Core i7 3.4GHz 16GB 2TB HD Windows 10 Pro",
+          "quantity": "4.00",
+          "unit_price": "269.95"
+        },
+        {
+          "description": "Dell Core 2 Duo Desktop Computer | Windows XP Pro | 4GB | 500GB",
+          "quantity": "5.00",
+          "unit_price": "168.00"
+        }
+      ],
+      "subtotal": "5640.17",
+      "tax": "564.02",
+      "total": "6204.20"
+    },
+    "batch1-0002.jpg": {
+      "supplier_name": "Fitzpatrick and Sons",
+      "invoice_number": "12847181",
+      "issued_on": "2012-03-03",
+      "currency": "USD",
+      "lines": [
+        {
+          "description": "HP Desktop Computer PC Core i5 16GB 2TB HD 256GB SSD 22\" LCD Windows 10",
+          "quantity": "5.00",
+          "unit_price": "139.95"
+        },
+        {
+          "description": "CUSTOM BUILT AMD RYZEN THREADRIPPER GAMING COMPUTER, 32 GB RAM,",
+          "quantity": "3.00",
+          "unit_price": "1400.00"
+        },
+        {
+          "description": "Fast Dell Optiplex Desktop PC Computer Dual Core 3.4Ghz 8GB 1TB Win 10 Pro WIFI",
+          "quantity": "1.00",
+          "unit_price": "217.00"
+        },
+        {
+          "description": "Dell Optiplex 790 Computer i7 @3.40 Ghz Quad Core 250GB 4GB Working",
+          "quantity": "3.00",
+          "unit_price": "159.99"
+        },
+        {
+          "description": "Vintage Microsolutions Pentium 133mhz Desktop Tower PC Windows 95 5.25 Floppy",
+          "quantity": "2.00",
+          "unit_price": "390.00"
+        }
+      ],
+      "subtotal": "6236.77",
+      "tax": "623.68",
+      "total": "6860.45"
+    },
+    "batch1-0003.jpg": null
+  },
+  "expected_per_field": {
+    "supplier_name": {"correct": 2, "total": 3},
+    "invoice_number": {"correct": 2, "total": 3},
+    "issued_on": {"correct": 2, "total": 3},
+    "lines.description": {"correct": 12, "total": 15},
+    "lines.quantity": {"correct": 11, "total": 15},
+    "tax": {"correct": 2, "total": 3},
+    "total": {"correct": 1, "total": 3}
+  },
+  "expected_overall": {"correct": 32, "total": 45}
+}

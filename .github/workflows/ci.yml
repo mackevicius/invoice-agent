@@ -34,12 +34,25 @@ jobs:
         run: |
           uv run --locked ruff check .
           uv run --locked ruff format --check .
-          uv run --locked mypy src tests conftest.py
+          uv run --locked mypy src evals tests conftest.py
       - name: Test the HTTP API against Postgres
         working-directory: api
         env:
           TEST_DATABASE_URL: postgresql://invoice:invoice@127.0.0.1:55432/invoice
         run: uv run --locked pytest
+      - name: Check reading accuracy with the fake model
+        working-directory: api
+        env:
+          TEST_DATABASE_URL: postgresql://invoice:invoice@127.0.0.1:55432/invoice
+        run: uv run --locked python -m evals.reading --check
+      - name: Upload reading accuracy results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: reading-accuracy
+          path: api/evals/results/*.json
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Install web dependencies
         working-directory: web
         run: npm ci
