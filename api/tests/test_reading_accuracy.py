@@ -20,7 +20,7 @@ from invoice_agent.schemas.invoice_fields import InvoiceFields
 from invoice_agent.schemas.invoices import InvoiceFile
 from invoice_agent.services.daily_ai_limit import DailyAILimit
 from invoice_agent.services.erp_tools import ERPTools
-from invoice_agent.services.invoices import InvoiceProcessing
+from invoice_agent.services.invoice_processing import InvoiceProcessing
 
 
 def test_wrong_total_reduces_reading_accuracy(

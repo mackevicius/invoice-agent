@@ -21,7 +21,7 @@ from invoice_agent.routes.invoices import create_invoice_router
 from invoice_agent.services.daily_ai_limit import DailyAILimit
 from invoice_agent.services.demo_company import DemoCompanies
 from invoice_agent.services.erp_tools import ERPTools
-from invoice_agent.services.invoices import InvoiceProcessing
+from invoice_agent.services.invoice_processing import InvoiceProcessing
 from invoice_agent.workers.invoice_queue import InProcessInvoiceQueue, InvoiceQueue
 
 

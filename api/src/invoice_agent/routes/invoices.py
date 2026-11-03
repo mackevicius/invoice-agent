@@ -14,11 +14,11 @@ from invoice_agent.schemas.invoices import (
     InvoiceView,
 )
 from invoice_agent.services.demo_company import DemoCompanies
+from invoice_agent.services.invoice_processing import InvoiceProcessing
 from invoice_agent.services.invoices import (
     InvoiceDecisionConflict,
     InvoiceNotFound,
     InvoicePermissionDenied,
-    InvoiceProcessing,
 )
 from invoice_agent.workers.invoice_queue import InvoiceQueue, ProcessInvoiceJob
 

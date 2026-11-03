@@ -15,7 +15,7 @@ from invoice_agent.schemas.invoice_fields import InvoiceFields, InvoiceLine
 from invoice_agent.schemas.invoices import InvoiceDetail, InvoiceFile
 from invoice_agent.services.daily_ai_limit import DailyAILimit
 from invoice_agent.services.erp_tools import ERPTools
-from invoice_agent.services.invoices import InvoiceProcessing
+from invoice_agent.services.invoice_processing import InvoiceProcessing
 
 
 def test_differently_worded_lines_are_paired_by_meaning(

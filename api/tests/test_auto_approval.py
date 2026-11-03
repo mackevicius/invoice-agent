@@ -10,7 +10,7 @@ from invoice_agent.schemas.invoice_fields import InvoiceFields
 from invoice_agent.schemas.invoices import InvoiceDetail, InvoiceFile
 from invoice_agent.services.daily_ai_limit import DailyAILimit
 from invoice_agent.services.erp_tools import ERPTools
-from invoice_agent.services.invoices import InvoiceProcessing
+from invoice_agent.services.invoice_processing import InvoiceProcessing
 
 
 @pytest.mark.parametrize("total", ["3214.08", "4999.99"])

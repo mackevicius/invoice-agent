@@ -89,7 +89,7 @@ def process_invoice(
     from invoice_agent.clients.line_pairing import ScriptedLinePairer
     from invoice_agent.schemas.invoices import InvoiceFile
     from invoice_agent.services.daily_ai_limit import DailyAILimit
-    from invoice_agent.services.invoices import InvoiceProcessing
+    from invoice_agent.services.invoice_processing import InvoiceProcessing
 
     def process(fields: InvoiceFields) -> InvoiceDetail:
         processing = InvoiceProcessing(
