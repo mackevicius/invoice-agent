@@ -1,0 +1,166 @@
+{
+  "version": "generated-invoices-v1",
+  "source": {
+    "kind": "synthetic",
+    "description": "Original fictional Invoice fixtures for PNG and PDF format coverage; not derived from Kaggle.",
+    "creator": "Invoice Agent",
+    "generator": "PyMuPDF 1.28.2",
+    "generated_on": "2026-11-03",
+    "formats": [
+      "image/png",
+      "application/pdf"
+    ],
+    "pdf_pages": {
+      "invoice-single-page.pdf": 1,
+      "invoice-multi-page.pdf": 2
+    }
+  },
+  "cases": [
+    {
+      "case_id": "generated-png-clean",
+      "filename": "invoice-clean.png",
+      "sha256": "1759c775aa7c5ce7da6830d8533dc96394b36c079dc8d41985c44dcfe82e0f72",
+      "expected": {
+        "supplier_name": "Northwind Paper",
+        "invoice_number": "SYN-2026-001",
+        "purchase_order_number": "PO-GEN-001",
+        "issued_on": "2026-10-20",
+        "currency": "EUR",
+        "lines": [
+          {
+            "description": "A4 paper, box",
+            "item_code": "NP-001",
+            "quantity": "4.00",
+            "unit_price": "12.50"
+          },
+          {
+            "description": "Desk organiser",
+            "item_code": "NP-002",
+            "quantity": "2.00",
+            "unit_price": "15.00"
+          }
+        ],
+        "subtotal": "80.00",
+        "tax": "16.00",
+        "total": "96.00"
+      }
+    },
+    {
+      "case_id": "generated-png-compact",
+      "filename": "invoice-compact.png",
+      "sha256": "76f63efa2e6c8d283edc36ec3a1cd808e6317ea265e3dc22b8a3335171640d00",
+      "expected": {
+        "supplier_name": "Harbour Studio",
+        "invoice_number": "SYN-2026-002",
+        "purchase_order_number": "PO-GEN-002",
+        "issued_on": "2026-10-21",
+        "currency": "USD",
+        "lines": [
+          {
+            "description": "Website maintenance",
+            "item_code": "HS-001",
+            "quantity": "3.00",
+            "unit_price": "75.00"
+          },
+          {
+            "description": "Hosting",
+            "item_code": "HS-002",
+            "quantity": "2.00",
+            "unit_price": "12.50"
+          },
+          {
+            "description": "Domain renewal",
+            "item_code": "HS-003",
+            "quantity": "1.00",
+            "unit_price": "20.00"
+          }
+        ],
+        "subtotal": "270.00",
+        "tax": "0.00",
+        "total": "270.00"
+      }
+    },
+    {
+      "case_id": "generated-pdf-single-page",
+      "filename": "invoice-single-page.pdf",
+      "sha256": "71970de912214da5ae9f2c437052e40a3bfd9de1bd7ab96b7635ddc90a71d33c",
+      "expected": {
+        "supplier_name": "Riverbend Equipment",
+        "invoice_number": "SYN-2026-003",
+        "purchase_order_number": "PO-GEN-003",
+        "issued_on": "2026-10-22",
+        "currency": "EUR",
+        "lines": [
+          {
+            "description": "Safety gloves, pair",
+            "item_code": "RE-001",
+            "quantity": "5.00",
+            "unit_price": "6.40"
+          },
+          {
+            "description": "Protective goggles",
+            "item_code": "RE-002",
+            "quantity": "3.00",
+            "unit_price": "12.00"
+          }
+        ],
+        "subtotal": "68.00",
+        "tax": "13.60",
+        "total": "81.60"
+      }
+    },
+    {
+      "case_id": "generated-pdf-multi-page",
+      "filename": "invoice-multi-page.pdf",
+      "sha256": "9c377b0f584edde3935619b4272cafcdf03775bf0ddb5093bd6246111bf586ea",
+      "expected": {
+        "supplier_name": "Meadow Logistics",
+        "invoice_number": "SYN-2026-004",
+        "purchase_order_number": "PO-GEN-004",
+        "issued_on": "2026-10-23",
+        "currency": "GBP",
+        "lines": [
+          {
+            "description": "Packing boxes, pack",
+            "item_code": "ML-001",
+            "quantity": "4.00",
+            "unit_price": "15.00"
+          },
+          {
+            "description": "Packing tape, roll",
+            "item_code": "ML-002",
+            "quantity": "6.00",
+            "unit_price": "2.50"
+          },
+          {
+            "description": "Bubble wrap, roll",
+            "item_code": "ML-003",
+            "quantity": "2.00",
+            "unit_price": "12.50"
+          },
+          {
+            "description": "Pallet delivery",
+            "item_code": "ML-004",
+            "quantity": "1.00",
+            "unit_price": "40.00"
+          },
+          {
+            "description": "Storage, day",
+            "item_code": "ML-005",
+            "quantity": "5.00",
+            "unit_price": "8.00"
+          },
+          {
+            "description": "Collection service",
+            "item_code": "ML-006",
+            "quantity": "1.00",
+            "unit_price": "20.00"
+          }
+        ],
+        "subtotal": "200.00",
+        "tax": "40.00",
+        "total": "240.00"
+      }
+    }
+  ]
+}

@@ -364,6 +364,19 @@ command and fails if any field score or the overall score changes. Reports are
 saved under `api/evals/results/` and uploaded as the `reading-accuracy` CI
 artifact, including failed baseline checks. Each run gets its own file.
 
+The separate [generated sample](api/evals/data/generated-v1/README.md) adds two
+PNGs, a single-page PDF, and a two-page PDF with lines and totals on page two.
+Run it with:
+
+```sh
+docker compose run --rm api uv run --locked python -m evals.reading --sample-dir evals/data/generated-v1 --check
+```
+
+Its fake baseline is **83/84 (98.81%)**, with one deliberately incorrect total.
+CI runs both samples and keeps their reports separately. The generated examples
+are fictional, not Kaggle data. Fake runs check the evaluation workflow and
+scoring; real-model runs are needed to measure actual reading accuracy.
+
 Data: [High-Quality Invoice Images for OCR](https://www.kaggle.com/datasets/osamahosamabdellatif/high-quality-invoice-images-for-ocr)
 by **osama hosam Abdellatif**, dataset version **3**. The database and derived
 labels are licensed under [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/);

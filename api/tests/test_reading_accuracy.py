@@ -187,3 +187,44 @@ def test_changed_image_is_rejected_before_processing(
     assert exit_code == 1
     assert "checksum mismatch: batch1-0001.jpg" in capsys.readouterr().err
     assert not output_dir.exists()
+
+
+def test_eval_command_scores_generated_pngs_and_pdfs(
+    database_url: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("TEST_DATABASE_URL", database_url)
+    sample_dir = DEFAULT_SAMPLE.parent / "generated-v1"
+
+    exit_code = main(
+        [
+            "--sample-dir",
+            str(sample_dir),
+            "--output-dir",
+            str(tmp_path),
+            "--check",
+        ]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "total: 3/4 (75.00%)" in output
+    assert "Overall: 83/84 (98.81%)" in output
+    result_files = list(tmp_path.glob("*.json"))
+    assert len(result_files) == 1
+    saved = json.loads(result_files[0].read_text(encoding="utf-8"))
+    assert saved["sample_version"] == "generated-invoices-v1"
+    assert saved["sample_source"]["kind"] == "synthetic"
+    assert saved["model"] == "fake-generated-v1"
+    assert saved["overall"]["correct"] == 83
+    assert saved["overall"]["total"] == 84
+    assert {invoice["case_id"] for invoice in saved["invoices"]} == {
+        "generated-png-clean",
+        "generated-png-compact",
+        "generated-pdf-single-page",
+        "generated-pdf-multi-page",
+    }
+    assert len(saved["invoices"][3]["expected"]["lines"]) == 6
+    assert saved["invoices"][3]["actual"]["total"] == "240.00"

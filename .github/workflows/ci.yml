@@ -44,7 +44,9 @@ jobs:
         working-directory: api
         env:
           TEST_DATABASE_URL: postgresql://invoice:invoice@127.0.0.1:55432/invoice
-        run: uv run --locked python -m evals.reading --check
+        run: |
+          uv run --locked python -m evals.reading --check
+          uv run --locked python -m evals.reading --sample-dir evals/data/generated-v1 --check
       - name: Upload reading accuracy results
         if: always()
         uses: actions/upload-artifact@v6
