@@ -11,6 +11,7 @@ from invoice_agent.schemas.demo_company import DemoPerson
 from invoice_agent.schemas.invoices import (
     InvoiceCounts,
     InvoiceDetail,
+    InvoiceFile,
     InvoiceHeader,
     InvoiceView,
 )
@@ -126,6 +127,24 @@ class Invoices:
             else:
                 detail.can_decide = True
         return detail
+
+    def get_file(self, company_id: UUID, invoice_id: UUID) -> InvoiceFile | None:
+        with psycopg.connect(self.database_url, row_factory=dict_row) as connection:
+            stored = connection.execute(
+                """SELECT file_name, content_type, file_content
+                   FROM invoices AS invoice
+                   JOIN demo_companies AS company ON company.id = invoice.company_id
+                   WHERE invoice.company_id = %s AND invoice.id = %s
+                     AND company.expires_at > %s AND file_content IS NOT NULL""",
+                (company_id, invoice_id, datetime.now(UTC)),
+            ).fetchone()
+        if stored is None:
+            return None
+        return InvoiceFile(
+            filename=stored["file_name"],
+            content_type=stored["content_type"],
+            content=bytes(stored["file_content"]),
+        )
 
     def _require(self, company_id: UUID, invoice_id: UUID) -> InvoiceDetail:
         invoice = self.get(company_id, invoice_id)

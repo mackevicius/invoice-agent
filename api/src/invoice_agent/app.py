@@ -22,6 +22,7 @@ from invoice_agent.services.daily_ai_limit import DailyAILimit
 from invoice_agent.services.demo_company import DemoCompanies
 from invoice_agent.services.erp_tools import ERPTools
 from invoice_agent.services.invoice_processing import InvoiceProcessing
+from invoice_agent.workers.demo_company import InProcessDemoCompanyCleanup
 from invoice_agent.workers.invoice_queue import InProcessInvoiceQueue, InvoiceQueue
 
 
@@ -53,21 +54,25 @@ def create_app(
         tracing=run_tracing,
     )
     queue = invoice_queue or InProcessInvoiceQueue(processing.process)
+    companies = DemoCompanies(database_url=url, embeddings=embedding_model)
+    cleanup = InProcessDemoCompanyCleanup(companies)
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
         initialize_database(url)
-        erp_tools.index_purchase_order_lines()
-        if isinstance(queue, InProcessInvoiceQueue):
-            queue.start()
+        cleanup.start()
         try:
-            yield
-        finally:
+            erp_tools.index_purchase_order_lines()
+            if isinstance(queue, InProcessInvoiceQueue):
+                queue.start()
             try:
+                yield
+            finally:
                 if isinstance(queue, InProcessInvoiceQueue):
                     queue.close()
-            finally:
-                run_tracing.close()
+        finally:
+            cleanup.close()
+            run_tracing.close()
 
     app = FastAPI(title="Invoice Agent", lifespan=lifespan)
 
@@ -86,7 +91,11 @@ def create_app(
             connection.execute("SELECT 1")
         return {"status": "ok"}
 
-    companies = DemoCompanies(database_url=url, embeddings=embedding_model)
     app.include_router(create_demo_company_router(companies, cookie_secure=secure))
     app.include_router(create_invoice_router(companies, processing, queue))
     return app
+
+
+def cleanup_expired_demo_companies() -> None:
+    removed = DemoCompanies(os.environ["DATABASE_URL"]).cleanup_expired()
+    print(f"Removed {removed} expired Demo Companies.")

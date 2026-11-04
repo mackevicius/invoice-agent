@@ -32,14 +32,20 @@ class DemoCompanies:
     database_url: str
     embeddings: TextEmbeddings | None = None
 
+    def cleanup_expired(self) -> int:
+        with psycopg.connect(self.database_url) as connection:
+            deleted = connection.execute(
+                "DELETE FROM demo_companies WHERE expires_at <= %s",
+                (datetime.now(UTC),),
+            )
+            return deleted.rowcount
+
     def start(
         self, token: str | None, visitor_id: UUID | None = None
     ) -> StartedDemoCompany:
+        self.cleanup_expired()
         now = datetime.now(UTC)
         with psycopg.connect(self.database_url) as connection:
-            connection.execute(
-                "DELETE FROM demo_companies WHERE expires_at <= %s", (now,)
-            )
             if token:
                 existing = connection.execute(
                     """SELECT id, expires_at, visitor_id FROM demo_companies

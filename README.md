@@ -22,9 +22,21 @@ The API documentation is at http://localhost:8000/docs.
 
 On first visit, the API creates a Demo Company with Suppliers, Purchase Orders,
 Goods Receipts, and five sample Invoices. An opaque HttpOnly cookie resumes the
-same Demo Company for 24 hours. Expired sessions cannot read data; expired
-companies and their records are removed when the next session starts.
+same Demo Company for 24 hours. Expired sessions cannot read, decide, or download
+Invoices; the next visit starts a fresh Demo Company. The local API removes expired
+companies, their records, and uploaded files at startup and every minute, even
+when no visitors return.
 Closing the browser does not reset the Demo Company.
+
+To run cleanup once, without starting the API server:
+
+```sh
+docker compose run --rm api uv run --locked invoice-agent-cleanup
+```
+
+An external scheduler can run the same command with `DATABASE_URL` set.
+For Lambda deployment, use an external schedule rather than the local API's
+background thread.
 
 ```sh
 docker compose down
@@ -133,6 +145,9 @@ omitting it selects Submitter. The Demo Company cookie is still required.
   `decision_block_reason`, `rejection_reason`, `received_at`, and the saved
   `auto_approval_limit` used for its decision. `trace_url` is the saved Langfuse
   link, or `null` when no link is available.
+- `GET /api/invoices/{id}/file` downloads the original uploaded file. Other
+  visitors and sample Invoices without a file return 404. Downloads require an
+  unexpired Demo Company session and cannot be cached.
 - `POST /api/invoices/{id}/approve` approves; `POST /api/invoices/{id}/reject`
   rejects with `{"rejection_reason": "The goods did not arrive."}`. Reasons
   are trimmed and limited to 2,000 characters. Permissions, Company isolation,
@@ -299,7 +314,10 @@ use a local HTTP endpoint for both Invoice reading and line pairing; no paid
 provider is contacted.
 Role and Review Queue tests exercise permissions, uploader tracking, final
 decisions, required Rejection Reasons, view filters, and counts through the
-HTTP API.
+HTTP API. Isolation tests cover cross-company lists, reads, decisions, downloads,
+and ERP reads. Expiry tests cover session replacement at exactly 24 hours,
+uploaded files, preservation of unexpired companies, and unattended cleanup
+both at startup and on the recurring schedule.
 
 Auto-Approval tests cover the strict amount boundary, unknown Suppliers,
 Possible Duplicates, currency mismatches, combined review reasons, and a limit

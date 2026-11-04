@@ -1,7 +1,8 @@
 from typing import Annotated, Literal
+from urllib.parse import quote
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 
 from invoice_agent.routes.demo_company import require_demo_person
 from invoice_agent.schemas.demo_company import DemoPerson
@@ -102,6 +103,24 @@ def create_invoice_router(
         if invoice is None:
             raise HTTPException(status_code=404, detail="Invoice not found.")
         return invoice
+
+    @router.get("/{invoice_id}/file")
+    def download_invoice(
+        invoice_id: UUID,
+        person: Annotated[DemoPerson, Depends(current_person)],
+    ) -> Response:
+        document = processing.get_file(person.company_id, invoice_id)
+        if document is None:
+            raise HTTPException(status_code=404, detail="Invoice not found.")
+        return Response(
+            content=document.content,
+            media_type=document.content_type,
+            headers={
+                "Content-Disposition": (
+                    f"attachment; filename*=UTF-8''{quote(document.filename, safe='')}"
+                )
+            },
+        )
 
     def record_decision(
         person: DemoPerson,

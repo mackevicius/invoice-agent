@@ -15,6 +15,9 @@ dependencies = [
     "uvicorn[standard]>=0.34,<1",
 ]
 
+[project.scripts]
+invoice-agent-cleanup = "invoice_agent.app:cleanup_expired_demo_companies"
+
 [dependency-groups]
 dev = [
     "httpx2>=2.16.0",
