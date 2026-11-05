@@ -75,7 +75,7 @@ class DemoCompanies:
                 ),
             )
             vectors = (
-                self.embeddings.embed([sample[4] for sample in SAMPLES])
+                self.embeddings.embed([sample.description for sample in SAMPLES])
                 if self.embeddings is not None
                 else None
             )

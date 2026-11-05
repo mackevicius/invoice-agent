@@ -21,7 +21,14 @@ HTTP API, and Next.js with shadcn/ui. Source changes reload automatically.
 The API documentation is at http://localhost:8000/docs.
 
 On first visit, the API creates a Demo Company with Suppliers, Purchase Orders,
-Goods Receipts, and five sample Invoices. An opaque HttpOnly cookie resumes the
+Goods Receipts, and twelve sample Invoices with saved fields, comparisons, steps
+and decisions. They cover clean Auto-Approval, prices over 2%, lower prices,
+quantity mismatches, partial deliveries, wording paired by meaning, Duplicate
+Invoices, Possible Duplicates, unknown Suppliers, and totals over the limit,
+plus examples already Approved or Rejected by a Reviewer.
+
+Samples are loaded from fixed snapshots without calling a reading or pairing
+model. An opaque HttpOnly cookie resumes the
 same Demo Company for 24 hours. Expired sessions cannot read, decide, or download
 Invoices; the next visit starts a fresh Demo Company. The local API removes expired
 companies, their records, and uploaded files at startup and every minute, even
@@ -110,7 +117,7 @@ custom models need a matching price definition in Langfuse.
 The trace URL is saved on the Invoice and shown as **Langfuse trace** in its
 header, opening in a new tab. Failed reads keep a trace, including the final
 In Review outcome and Skipped steps. Concurrent runs have separate traces.
-Seeded sample Invoices have no agent run and no trace link.
+Seeded sample Invoices have saved run data but no live Langfuse trace link.
 
 With either key missing, or `LANGFUSE_TRACING_ENABLED=false`, new runs continue
 normally without a trace link. A Langfuse project-lookup failure also leaves the
@@ -308,6 +315,10 @@ cover ranked candidates, refused and invalid choices, exact-match priority,
 Company/Purchase Order isolation, failures, and embedding model changes.
 Duplicate Invoice tests cover both rules, the 30-day boundary, combined failure
 reasons, history failures, saved record links, and Company/Supplier isolation.
+Sample tests replay every saved Invoice through the public processing interface
+with scripted reading and pairing, comparing its decision, reasons, comparison
+and step data with the fixed snapshot. Separate API checks verify that starting,
+resuming and browsing samples in every role never calls a live model.
 Daily AI limit tests cover both caps, concurrent workers, Demo Company renewal,
 midnight UTC reset, zero limits, and scripted reads. The live SDK retry checks
 use a local HTTP endpoint for both Invoice reading and line pairing; no paid

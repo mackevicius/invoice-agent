@@ -162,7 +162,7 @@
     },
     {
       "case_id": "possible-duplicate",
-      "invoice_updates": { "tax": "0.00", "total": "2678.40" },
+      "invoice_updates": { "tax": "81.60", "total": "2760.00" },
       "expected": {
         "status": "In Review",
         "reasons": [

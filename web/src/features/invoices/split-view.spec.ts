@@ -29,9 +29,13 @@ test('a visitor selects an Invoice and returns to the same Demo Company', async 
   await sidebar.getByRole('button', { name: /INV-0309/ }).click();
 
   await expect(detail.getByRole('heading', { name: 'INV-0309' })).toBeVisible();
-  await expect(detail.getByText('Paper & Co.', { exact: true })).toBeVisible();
-  await expect(detail.getByLabel('Invoice total')).toContainText('2,678.40');
-  await expect(detail.getByText('In Review', { exact: true })).toBeVisible();
+  await expect(
+    detail.locator('header').getByText('Paper & Co.', { exact: true }),
+  ).toBeVisible();
+  await expect(detail.getByLabel('Invoice total')).toContainText('2,760.00');
+  await expect(
+    detail.locator('header').getByText('In Review', { exact: true }),
+  ).toBeVisible();
 
   await page.reload();
 
@@ -289,7 +293,7 @@ test('a Submitter uploads an unknown Supplier Invoice and a Reviewer approves it
     detail.getByRole('heading', { name: 'INV-2026-42' }),
   ).toBeVisible();
   await expect(
-    detail.getByText('Baltic Office Supplies', { exact: true }),
+    detail.locator('header').getByText('Baltic Office Supplies'),
   ).toBeVisible();
   const steps = detail.getByRole('list', { name: 'Agent steps' });
   const readStep = steps
@@ -339,7 +343,7 @@ test('a Submitter uploads an unknown Supplier Invoice and a Reviewer approves it
     sidebar.getByRole('button', { name: /INV-2026-42/ }),
   ).toHaveCount(0);
   await expect(sidebar.getByRole('tab', { name: /^Done\b/ })).toContainText(
-    '4',
+    '7',
   );
   expect(
     await page.evaluate(

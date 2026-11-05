@@ -6,24 +6,41 @@ from fastapi.testclient import TestClient
 from invoice_agent.schemas.demo_company import DemoRole
 from invoice_agent.schemas.invoices import InvoiceDetail
 
+REVIEW_SAMPLES = {
+    ("INV-0309", "In Review"),
+    ("INV-0217", "In Review"),
+    ("INV-0781", "In Review"),
+    ("INV-1046", "In Review"),
+    ("INV-0001", "In Review"),
+    ("INV-0782", "In Review"),
+}
+DONE_SAMPLES = {
+    ("INV-1042", "Auto-Approved"),
+    ("INV-0781", "Approved"),
+    ("INV-1043", "Rejected"),
+    ("INV-1044", "Auto-Approved"),
+    ("INV-0218", "Auto-Approved"),
+    ("INV-1045", "Auto-Approved"),
+}
+
 
 @pytest.mark.parametrize(
-    ("view", "role", "expected_numbers"),
+    ("view", "role", "expected_headers"),
     [
         (
             "all",
             "Admin",
-            {None, "INV-1042", "INV-0309", "INV-0781", "INV-1043", "INV-0217"},
+            REVIEW_SAMPLES | DONE_SAMPLES | {(None, "In Review")},
         ),
         (
             "mine",
             "Submitter",
-            {"INV-1042", "INV-0309", "INV-0781", "INV-1043", "INV-0217"},
+            REVIEW_SAMPLES | DONE_SAMPLES,
         ),
-        ("mine", "Reviewer", {None}),
+        ("mine", "Reviewer", {(None, "In Review")}),
         ("mine", "Admin", set()),
-        ("review-queue", "Reviewer", {None, "INV-0309", "INV-0217"}),
-        ("done", "Reviewer", {"INV-1042", "INV-0781", "INV-1043"}),
+        ("review-queue", "Reviewer", REVIEW_SAMPLES | {(None, "In Review")}),
+        ("done", "Reviewer", DONE_SAMPLES),
     ],
 )
 def test_invoice_views_filter_by_status_and_current_person(
@@ -31,7 +48,7 @@ def test_invoice_views_filter_by_status_and_current_person(
     upload_for_review: Callable[[DemoRole], InvoiceDetail],
     view: str,
     role: DemoRole,
-    expected_numbers: set[str | None],
+    expected_headers: set[tuple[str | None, str]],
 ) -> None:
     upload_for_review("Reviewer")
 
@@ -41,13 +58,13 @@ def test_invoice_views_filter_by_status_and_current_person(
 
     assert response.status_code == 200
     assert {
-        invoice["invoice_number"] for invoice in response.json()
-    } == expected_numbers
-    assert len(response.json()) == len(expected_numbers)
+        (invoice["invoice_number"], invoice["status"]) for invoice in response.json()
+    } == expected_headers
+    assert len(response.json()) == len(expected_headers)
 
 
 @pytest.mark.parametrize(
-    ("role", "mine"), [("Submitter", 5), ("Reviewer", 1), ("Admin", 0)]
+    ("role", "mine"), [("Submitter", 12), ("Reviewer", 1), ("Admin", 0)]
 )
 def test_counts_cover_every_view_and_update_after_a_decision(
     client: TestClient,
@@ -61,7 +78,7 @@ def test_counts_cover_every_view_and_update_after_a_decision(
     response = client.get("/api/invoices/counts", headers=headers)
 
     assert response.status_code == 200
-    assert response.json() == {"all": 6, "mine": mine, "review_queue": 3, "done": 3}
+    assert response.json() == {"all": 13, "mine": mine, "review_queue": 7, "done": 6}
     invoice = next(
         invoice
         for invoice in client.get("/api/invoices?view=review-queue").json()
@@ -73,8 +90,8 @@ def test_counts_cover_every_view_and_update_after_a_decision(
     )
     assert decided.status_code == 200
     assert client.get("/api/invoices/counts", headers=headers).json() == {
-        "all": 6,
+        "all": 13,
         "mine": mine,
-        "review_queue": 2,
-        "done": 4,
+        "review_queue": 6,
+        "done": 7,
     }
