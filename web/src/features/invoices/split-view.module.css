@@ -612,6 +612,22 @@
   margin-top: 24px;
 }
 
+.sampleInvoices {
+  margin-top: 24px;
+}
+
+.sampleInvoices p {
+  color: #66786d;
+  font-size: 14px;
+}
+
+.sampleActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .uploadError {
   margin-top: 20px;
   color: #9a3c36;

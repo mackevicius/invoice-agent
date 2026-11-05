@@ -3,7 +3,7 @@
 Checks supplier Invoices against Purchase Orders and Goods Receipts.
 Visitors get a private, seeded Demo Company and can upload an Invoice to watch
 its fields being read, its Supplier looked up, and its Three-Way Match in the
-Split view. No model calls are needed to browse the samples. Uploaded Invoices
+Split view. No model calls are needed to browse the saved sample Invoices. Uploaded Invoices
 are Auto-Approved only when every rule passes and the total is under the
 Auto-Approval Limit. Otherwise they finish In Review with every failed check
 listed. Known Suppliers are checked for Duplicate Invoices and Possible Duplicates.
@@ -27,7 +27,7 @@ quantity mismatches, partial deliveries, wording paired by meaning, Duplicate
 Invoices, Possible Duplicates, unknown Suppliers, and totals over the limit,
 plus examples already Approved or Rejected by a Reviewer.
 
-Samples are loaded from fixed snapshots without calling a reading or pairing
+Saved sample Invoices are loaded from fixed snapshots without calling a reading or pairing
 model. An opaque HttpOnly cookie resumes the
 same Demo Company for 24 hours. Expired sessions cannot read, decide, or download
 Invoices; the next visit starts a fresh Demo Company. The local API removes expired
@@ -66,6 +66,22 @@ Choose **Upload Invoice** to open the upload page in the right pane. Select or
 drop one PDF, PNG, JPEG, WebP or GIF up to 10 MB. After upload, the new Invoice
 is selected automatically. Its fields and saved agent steps refresh once a
 second while it is Processing. Unreadable files finish In Review with a reason.
+
+The upload page also offers two original, fictional sample PDFs:
+
+- [Matching Invoice](web/public/sample-invoices/matching-invoice.pdf): 24 boxes of
+  Recycled A4 paper at EUR 111.60 each, total EUR 2,678.40. Its first upload should
+  finish Auto-Approved with the default Auto-Approval Limit.
+- [Overcharged Invoice](web/public/sample-invoices/overcharged-invoice.pdf): the
+  same goods at EUR 120.00 each, total EUR 2,880.00. It should finish In Review
+  because the unit price is more than 2% above the Purchase Order.
+
+Both match Paper & Co.'s seeded Purchase Order PO-1002 and Goods Receipt. Their
+Invoice numbers (DEMO-MATCH-001 and DEMO-OVER-001) and totals differ from the saved
+sample Invoices. Each button uploads the actual PDF through `POST /api/invoices`
+and runs the normal agent, including live model calls and the daily AI limits.
+Repeating either sample produces a Duplicate Invoice; a changed Auto-Approval
+Limit or an exhausted daily allowance can also send a sample In Review.
 
 Compose defaults to `INVOICE_MODEL_PROVIDER=openai`. Set `OPENAI_API_KEY` in your
 local environment, or copy `.env.example` to `.env` and fill it in, before

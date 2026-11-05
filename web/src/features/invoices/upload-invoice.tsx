@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { LoaderCircle, Upload, X } from 'lucide-react';
+import { FileCheck, FileWarning, LoaderCircle, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ApiError, DemoCompanyExpiredError } from '@/lib/api';
 import { uploadInvoice, type DemoRole, type InvoiceDetail } from './api';
@@ -29,7 +29,17 @@ export function UploadInvoice({
   const [fileError, setFileError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const upload = useMutation({
-    mutationFn: (file: File) => uploadInvoice(file, role),
+    mutationFn: async (
+      selected: File | 'matching-invoice.pdf' | 'overcharged-invoice.pdf',
+    ) => {
+      if (typeof selected !== 'string') return uploadInvoice(selected, role);
+      const response = await fetch(`/sample-invoices/${selected}`);
+      if (!response.ok) throw new Error('Unable to load the sample Invoice.');
+      const sample = new File([await response.blob()], selected, {
+        type: 'application/pdf',
+      });
+      return uploadInvoice(sample, role);
+    },
     onSuccess: onUploaded,
     onError: (error) => {
       if (error instanceof DemoCompanyExpiredError) onExpired(error);
@@ -107,6 +117,33 @@ export function UploadInvoice({
             onChange={(event) => selectFile(event.target.files?.[0])}
           />
         </label>
+        <div className={styles.sampleInvoices}>
+          <p>Don&apos;t have an Invoice? Try one of ours.</p>
+          <div className={styles.sampleActions}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={upload.isPending}
+              onClick={() => {
+                setFileError(null);
+                upload.mutate('matching-invoice.pdf');
+              }}
+            >
+              <FileCheck aria-hidden="true" /> Matching Invoice
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={upload.isPending}
+              onClick={() => {
+                setFileError(null);
+                upload.mutate('overcharged-invoice.pdf');
+              }}
+            >
+              <FileWarning aria-hidden="true" /> Overcharged Invoice
+            </Button>
+          </div>
+        </div>
         {error && (
           <p className={styles.uploadError} role="alert">
             {error}

@@ -359,6 +359,103 @@ test('a Submitter uploads an unknown Supplier Invoice and a Reviewer approves it
   });
 });
 
+for (const sample of [
+  { label: 'Matching Invoice', filename: 'matching-invoice.pdf' },
+  { label: 'Overcharged Invoice', filename: 'overcharged-invoice.pdf' },
+]) {
+  test(`a Submitter uploads a ready-made ${sample.label} with one click`, async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const sidebar = page.getByRole('complementary', { name: 'Invoices' });
+    const detail = page.getByRole('main', { name: 'Invoice details' });
+    await expect(
+      sidebar.getByRole('button', { name: /INV-1042/ }),
+    ).toBeVisible();
+    await sidebar.getByRole('button', { name: 'Upload Invoice' }).click();
+    const button = detail.getByRole('button', {
+      name: sample.label,
+      exact: true,
+    });
+    await expect(button).toBeVisible();
+
+    const sampleResponse = page.waitForResponse(
+      `**/sample-invoices/${sample.filename}`,
+    );
+    const uploadedResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/invoices') &&
+        response.request().method() === 'POST',
+    );
+    await button.click();
+    const response = await uploadedResponse;
+    expect(response.status()).toBe(202);
+    expect(await response.json()).toMatchObject({
+      status: 'Processing',
+      submitted_by: 'submitter',
+      filename: sample.filename,
+    });
+    const downloaded = await sampleResponse;
+    expect(downloaded.status()).toBe(200);
+    expect(downloaded.headers()['content-type']).toBe('application/pdf');
+    await expect(
+      detail.getByRole('heading', { name: 'INV-2026-42' }),
+    ).toBeVisible();
+  });
+}
+
+test('sample downloads lock upload controls and can be retried after a failure', async ({
+  page,
+}) => {
+  let releaseDownload!: () => void;
+  const downloadReleased = new Promise<void>((resolve) => {
+    releaseDownload = resolve;
+  });
+  await page.route('**/sample-invoices/matching-invoice.pdf', async (route) => {
+    await downloadReleased;
+    await route.fulfill({ status: 503, body: 'Sample unavailable' });
+  });
+  await page.goto('/');
+  const sidebar = page.getByRole('complementary', { name: 'Invoices' });
+  const detail = page.getByRole('main', { name: 'Invoice details' });
+  await expect(sidebar.getByRole('button', { name: /INV-1042/ })).toBeVisible();
+  await sidebar.getByRole('button', { name: 'Upload Invoice' }).click();
+  const matching = detail.getByRole('button', {
+    name: 'Matching Invoice',
+    exact: true,
+  });
+  const overcharged = detail.getByRole('button', {
+    name: 'Overcharged Invoice',
+    exact: true,
+  });
+  await matching.click();
+  await expect(matching).toBeDisabled();
+  await expect(overcharged).toBeDisabled();
+  await expect(detail.getByLabel('Invoice file')).toBeDisabled();
+  await expect(detail.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  await expect(detail.locator('form')).toHaveAttribute('aria-busy', 'true');
+  releaseDownload();
+
+  await expect(detail.getByRole('alert')).toHaveText(
+    'Unable to upload this Invoice. Please try again.',
+  );
+  await expect(matching).toBeEnabled();
+  await expect(overcharged).toBeEnabled();
+  await expect(detail.getByLabel('Invoice file')).toBeEnabled();
+  await expect(detail.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+  await page.unroute('**/sample-invoices/matching-invoice.pdf');
+  const uploadedResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/invoices') &&
+      response.request().method() === 'POST',
+  );
+  await matching.click();
+  expect((await uploadedResponse).status()).toBe(202);
+  await expect(
+    detail.getByRole('heading', { name: 'INV-2026-42' }),
+  ).toBeVisible();
+});
+
 test('Three-Way Match shows mismatches, savings, and every reason', async ({
   page,
 }, testInfo) => {
