@@ -232,16 +232,17 @@ say "Create the AWS account on the Free plan, then sign the AWS CLI in as an adm
 open_url "https://signin.aws.amazon.com/signup?request_type=register"
 step "Sign up and choose the Free plan."
 step "Root user → Security credentials → assign an MFA device."
-step "IAM Identity Center → enable → create a user with AdministratorAccess."
-step "In a terminal: aws configure sso (region $AWS_REGION), and note the profile name."
+step "IAM → Users → Create user 'admin' with console access and AdministratorAccess."
+warn "Skip IAM Identity Center: it creates an organization, which ends the Free plan."
+step "In a terminal: aws login --profile invoice (region $AWS_REGION), signing in as 'admin'."
 warn "The Free plan ends after 6 months: upgrade to Paid with a \$20 spend limit before then."
-pause "Press Enter once 'aws configure sso' has finished."
+pause "Press Enter once 'aws login' has finished."
 ask AWS_PROFILE "AWS CLI profile name (empty for default):"
 [[ -n "$AWS_PROFILE" ]] || AWS_PROFILE=default
 write_env AWS_PROFILE "$AWS_PROFILE"
 export AWS_PROFILE
 until aws sts get-caller-identity --query Account --output text; do
-  warn "The AWS CLI is not signed in. Run: aws sso login --profile $AWS_PROFILE"
+  warn "The AWS CLI is not signed in. Run: aws login --profile $AWS_PROFILE"
   pause "Press Enter to check again."
 done
 until gh auth status >/dev/null 2>&1; do
