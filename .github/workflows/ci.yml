@@ -7,7 +7,8 @@ permissions:
 
 concurrency:
   group: checks-${{ github.ref }}
-  cancel-in-progress: true
+  # A cancelled run on main could stop a deploy halfway.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   checks:
@@ -85,3 +86,73 @@ jobs:
         run: |
           docker compose logs db
           cat /tmp/invoice-api.log /tmp/invoice-web.log 2>/dev/null || true
+
+  deploy:
+    needs: checks
+    # Skipped until scripts/setup-aws-deploy.sh has set the deploy variables.
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && vars.AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      STACK_NAME: invoice-agent
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: eu-central-1
+      - uses: aws-actions/setup-sam@v3
+        with:
+          use-installer: true
+      - name: Build the Lambda image
+        run: sam build --template-file infra/template.yaml
+      - name: Deploy the API, worker, queue and Invoice files bucket
+        env:
+          ALERT_EMAIL: ${{ vars.AWS_ALERT_EMAIL }}
+          IMAGE_REPOSITORY: ${{ vars.AWS_IMAGE_REPOSITORY }}
+          MODEL_PROVIDER: ${{ vars.INVOICE_MODEL_PROVIDER || 'openai' }}
+        run: >-
+          sam deploy --stack-name "$STACK_NAME"
+          --image-repository "$IMAGE_REPOSITORY"
+          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND
+          --no-confirm-changeset --no-fail-on-empty-changeset
+          --parameter-overrides
+          "AlertEmail=$ALERT_EMAIL" "ModelProvider=$MODEL_PROVIDER"
+      - name: Migrate the database
+        run: |
+          output() {
+            aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text
+          }
+          aws lambda invoke --function-name "$(output MigrationFunctionName)" \
+            /tmp/migration.json > /tmp/invoke.json
+          if jq -e 'has("FunctionError")' /tmp/invoke.json > /dev/null; then
+            cat /tmp/migration.json
+            exit 1
+          fi
+          api_url=$(output ApiUrl)
+          echo "API_URL=${api_url%/}" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Deploy the web app to Vercel
+        working-directory: web
+        run: |
+          npx --yes vercel@65 pull --yes --environment=production --token="$VERCEL_TOKEN"
+          npx --yes vercel@65 build --prod --token="$VERCEL_TOKEN"
+          npx --yes vercel@65 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+      - name: Upload an Invoice on the live URL and wait for it to finish
+        run: scripts/smoke-check.sh "${{ vars.WEB_URL }}"

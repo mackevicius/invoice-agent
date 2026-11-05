@@ -9,6 +9,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from pydantic import JsonValue
 
+from invoice_agent.clients.invoice_files import InvoiceFileStore
 from invoice_agent.clients.invoice_reader import InvoiceReader
 from invoice_agent.clients.line_pairing import LinePairer
 from invoice_agent.clients.tracing import RunTracing
@@ -59,8 +60,9 @@ class InvoiceProcessing(Invoices):
         daily_ai_limit: DailyAILimit,
         line_pairer: LinePairer | None = None,
         tracing: RunTracing | None = None,
+        invoice_files: InvoiceFileStore | None = None,
     ) -> None:
-        super().__init__(database_url)
+        super().__init__(database_url, invoice_files)
         self.reader = reader
         self.erp_tools = erp_tools
         self.daily_ai_limit = daily_ai_limit
@@ -92,6 +94,8 @@ class InvoiceProcessing(Invoices):
     ) -> InvoiceDetail:
         invoice_id = uuid4()
         now = datetime.now(UTC)
+        if self.invoice_files is not None:
+            self.invoice_files.save(company_id, invoice_id, document.content)
         with psycopg.connect(self.database_url) as connection:
             inserted = connection.execute(
                 """INSERT INTO invoices
@@ -105,7 +109,7 @@ class InvoiceProcessing(Invoices):
                     now,
                     document.filename,
                     document.content_type,
-                    document.content,
+                    document.content if self.invoice_files is None else None,
                     submitted_by,
                     company_id,
                     now,
@@ -172,12 +176,8 @@ class InvoiceProcessing(Invoices):
             ).fetchone()
             if claimed is None:
                 return state
-            stored = connection.execute(
-                """SELECT file_name, content_type, file_content FROM invoices
-                   WHERE company_id = %s AND id = %s""",
-                (company_id, invoice_id),
-            ).fetchone()
-        if stored is None:
+        document = self.get_file(company_id, invoice_id)
+        if document is None:
             raise InvoiceNotFound("Invoice not found.")
         try:
             if self.reader.uses_live_model and not self.daily_ai_limit.reserve(
@@ -185,13 +185,7 @@ class InvoiceProcessing(Invoices):
             ):
                 self._fail_read(company_id, invoice_id, "daily AI limit reached")
                 return state
-            fields = self.reader.read(
-                InvoiceFile(
-                    filename=stored["file_name"],
-                    content_type=stored["content_type"],
-                    content=bytes(stored["file_content"]),
-                )
-            )
+            fields = self.reader.read(document)
         except Exception:
             logger.exception("Invoice reading failed for %s", invoice_id)
             self._fail_read(

@@ -7,6 +7,7 @@ from psycopg import sql
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from invoice_agent.clients.invoice_files import InvoiceFileStore
 from invoice_agent.schemas.demo_company import DemoPerson
 from invoice_agent.schemas.invoices import (
     InvoiceCounts,
@@ -51,8 +52,11 @@ class InvoiceDecisionConflict(ValueError):
 
 
 class Invoices:
-    def __init__(self, database_url: str) -> None:
+    def __init__(
+        self, database_url: str, invoice_files: InvoiceFileStore | None = None
+    ) -> None:
         self.database_url = database_url
+        self.invoice_files = invoice_files
 
     def list_headers(
         self,
@@ -135,15 +139,23 @@ class Invoices:
                    FROM invoices AS invoice
                    JOIN demo_companies AS company ON company.id = invoice.company_id
                    WHERE invoice.company_id = %s AND invoice.id = %s
-                     AND company.expires_at > %s AND file_content IS NOT NULL""",
+                     AND company.expires_at > %s AND file_name IS NOT NULL""",
                 (company_id, invoice_id, datetime.now(UTC)),
             ).fetchone()
         if stored is None:
             return None
+        if stored["file_content"] is not None:
+            content: bytes | None = bytes(stored["file_content"])
+        elif self.invoice_files is not None:
+            content = self.invoice_files.load(company_id, invoice_id)
+        else:
+            content = None
+        if content is None:
+            return None
         return InvoiceFile(
             filename=stored["file_name"],
             content_type=stored["content_type"],
-            content=bytes(stored["file_content"]),
+            content=content,
         )
 
     def _require(self, company_id: UUID, invoice_id: UUID) -> InvoiceDetail:

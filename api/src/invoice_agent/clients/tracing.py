@@ -79,6 +79,13 @@ class RunTracing:
             observation.update(output=result)
         return result
 
+    def flush(self) -> None:
+        if self.client is not None:
+            try:
+                self.client.flush()
+            except Exception:
+                logger.exception("Langfuse flush failed.")
+
     def close(self) -> None:
         if self.client is not None:
             try:

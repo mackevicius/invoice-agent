@@ -42,8 +42,7 @@ docker compose run --rm api uv run --locked invoice-agent-cleanup
 ```
 
 An external scheduler can run the same command with `DATABASE_URL` set.
-For Lambda deployment, use an external schedule rather than the local API's
-background thread.
+On AWS, a scheduled Lambda runs it hourly (see [Deploy to AWS](#deploy-to-aws)).
 
 ```sh
 docker compose down
@@ -98,7 +97,7 @@ The API stores the file and a Processing Invoice in Postgres, then queues the
 Demo Company and Invoice IDs through `InvoiceQueue`. The local adapter runs a
 LangGraph worker on its own thread. Files and step records are deleted with
 their Demo Company. This in-process queue is for local development: restarting
-the API loses queued jobs. Deployment will add SQS and S3 (ADR 0001).
+the API loses queued jobs. In the cloud, SQS and S3 take their place (ADR 0001).
 
 ## Langfuse Tracing
 
@@ -514,6 +513,63 @@ wrong Auto-Approvals, average cost and average time. Only reports with the same
 eval kind, sample version, checksum and scoring version share a table; different
 samples remain separate. Missing measurements are shown as unavailable.
 
+## Deploy to AWS
+
+The public demo runs on AWS Lambda, SQS and S3 in `eu-central-1`, Postgres on
+Neon, and the web app on Vercel (ADR 0001). Nothing runs while nobody visits.
+`infra/template.yaml` is the AWS SAM stack (ADR 0005):
+
+- **API**: a Lambda function URL running the same FastAPI app through Mangum.
+  Vercel's `/api` rewrite points at it, so cookies stay on the web domain.
+- **Worker**: a Lambda triggered by the SQS queue, one Invoice at a time, at most
+  two in parallel. It flushes Langfuse before returning.
+- **Invoice files**: a private S3 bucket. Objects expire after one day, which
+  outlives the 24-hour Demo Company they belong to.
+- **Cleanup**: an hourly Lambda removing expired Demo Companies.
+- **Migration**: a Lambda CI invokes after each deploy to apply the schema.
+- **Budget**: an email when the month's AWS cost passes, or is forecast to pass,
+  $5.
+
+The same code chooses its adapters from the environment: `INVOICE_QUEUE_URL`
+switches the queue to SQS and `INVOICE_FILES_BUCKET` switches Invoice files to
+S3. Without them, the app uses the in-process queue and Postgres as before.
+`DATABASE_URL` and the model and Langfuse keys live only in AWS SSM Parameter
+Store under `/invoice-agent` as encrypted parameters. Each Lambda loads them at
+cold start; the GitHub deploy role is denied read access to them.
+
+Lambda limits request bodies to 6 MB, so live uploads are limited to about 4 MB.
+
+### First-time setup
+
+Accounts, keys and the GitHub deploy role need a human. Run the wizard from the
+repository root and follow it:
+
+```sh
+scripts/setup-aws-deploy.sh
+```
+
+It needs the AWS CLI, the GitHub CLI and Node. It stores secrets in AWS SSM,
+sets the GitHub variables and the `VERCEL_TOKEN` secret, deploys
+`infra/bootstrap.yaml` (GitHub OIDC role and image repository) and links the
+Vercel project. Non-secret answers are saved in `.env.deploy` for re-runs.
+
+### Continuous deployment
+
+Each push to `main` that passes the checks deploys: `sam build` and
+`sam deploy`, the migration Lambda, then a prebuilt Vercel production deploy
+whose `/api` rewrite points at the new function URL. Finally,
+`scripts/smoke-check.sh` uploads `docs/sample-invoice-known-supplier.pdf` on the
+live URL and waits until the agent has read it. Until the wizard has set
+`AWS_DEPLOY_ROLE_ARN`, the deploy job is skipped.
+
+To smoke-check a deployment by hand:
+
+```sh
+scripts/smoke-check.sh https://<your-app>.vercel.app
+```
+
+Each run makes live model requests that count towards the daily AI limits.
+
 ## Layout
 
 The API is organised by layer (ADR 0004). A feature keeps the same file name in
@@ -526,11 +582,14 @@ each layer, for example `routes/invoices.py`, `schemas/invoices.py` and
   sessions, the Process an Invoice graph (`invoice_processing.py`), Invoice
   lookups and Reviewer decisions (`invoices.py`) and ERP Tools.
 - `api/src/invoice_agent/clients/`: Invoice readers for AI models, the fake
-  reader and its response fixture.
-- `api/src/invoice_agent/workers/`: local Invoice queue and worker thread.
+  reader and its response fixture, and the S3 file store and SSM settings.
+- `api/src/invoice_agent/workers/`: Invoice queue adapters (in-process and SQS).
 - `api/src/invoice_agent/db/`: Postgres schema with pgvector, its startup
   script, and Demo Company sample data.
+- `api/lambda.Dockerfile`: the image every Lambda function runs.
 - `api/tests/`: API tests, one file per behaviour.
+- `infra/`: AWS SAM stack and the one-time GitHub deploy role (ADR 0005).
+- `scripts/`: the deploy setup wizard and the live smoke check.
 - `web/src/features/invoices/`: API client, Split view, and its browser test.
 - `web/src/features/demo-company/`: Demo Company expiry and the Auto-Approval
   Limit editor.

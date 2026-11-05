@@ -4,12 +4,14 @@ version = "0.1.0"
 description = "Invoice Agent HTTP API"
 requires-python = ">=3.12"
 dependencies = [
+    "boto3>=1.40,<2",
     "fastapi>=0.115,<1",
     "fastembed>=0.9,<1",
     "langchain-anthropic>=1,<2",
     "langchain-openai>=1,<2",
     "langfuse>=5,<6",
     "langgraph>=1,<2",
+    "mangum>=0.22,<1",
     "psycopg[binary]>=3.2,<4",
     "python-multipart>=0.0.20,<1",
     "uvicorn[standard]>=0.34,<1",
@@ -20,7 +22,9 @@ invoice-agent-cleanup = "invoice_agent.app:cleanup_expired_demo_companies"
 
 [dependency-groups]
 dev = [
+    "boto3-stubs[s3,sqs,ssm]>=1.40,<2",
     "httpx2>=2.16.0",
+    "moto[s3,sqs,ssm]>=5.1,<6",
     "mypy>=1.15,<2",
     "pytest>=8.3,<10",
     "ruff>=0.11,<1",

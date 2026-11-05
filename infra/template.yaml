@@ -1,0 +1,202 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Invoice Agent API, worker, queue and Invoice files (ADR 0001, ADR 0005).
+
+Parameters:
+  AlertEmail:
+    Type: String
+    Description: Receives the monthly budget alert.
+  ModelProvider:
+    Type: String
+    AllowedValues: [openai, anthropic]
+    Default: openai
+  ParameterPath:
+    Type: String
+    Default: /invoice-agent
+    Description: SSM path holding DATABASE_URL and the model and Langfuse keys.
+
+Globals:
+  Function:
+    Architectures: [x86_64]
+    MemorySize: 2048
+    Environment:
+      Variables:
+        INVOICE_PARAMETER_PATH: !Ref ParameterPath
+        INVOICE_MODEL_PROVIDER: !Ref ModelProvider
+        INVOICE_QUEUE_URL: !Ref InvoiceQueue
+        INVOICE_FILES_BUCKET: !Ref InvoiceFilesBucket
+        INVOICE_AI_DAILY_VISITOR_LIMIT: '5'
+        INVOICE_AI_DAILY_GLOBAL_LIMIT: '100'
+
+Resources:
+  InvoiceFilesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          # Uploads happen while a Demo Company is alive, so one day outlives it.
+          - Id: ExpireWithDemoCompany
+            Status: Enabled
+            ExpirationInDays: 1
+
+  InvoiceQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 1800
+      MessageRetentionPeriod: 86400
+      SqsManagedSseEnabled: true
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      Timeout: 30
+      ImageConfig:
+        Command: [invoice_agent.app.handle_api_request]
+      FunctionUrlConfig:
+        AuthType: NONE
+      LoggingConfig:
+        LogGroup: !Ref ApiLogs
+      Policies:
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt InvoiceQueue.QueueName
+        - S3CrudPolicy:
+            BucketName: !Ref InvoiceFilesBucket
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParametersByPath
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterPath}
+    Metadata:
+      DockerContext: ../api
+      Dockerfile: lambda.Dockerfile
+
+  WorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      Timeout: 300
+      ImageConfig:
+        Command: [invoice_agent.app.handle_invoice_messages]
+      LoggingConfig:
+        LogGroup: !Ref WorkerLogs
+      Events:
+        Invoices:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt InvoiceQueue.Arn
+            BatchSize: 1
+            ScalingConfig:
+              MaximumConcurrency: 2
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref InvoiceFilesBucket
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParametersByPath
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterPath}
+    Metadata:
+      DockerContext: ../api
+      Dockerfile: lambda.Dockerfile
+
+  CleanupFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      Timeout: 60
+      MemorySize: 512
+      ImageConfig:
+        Command: [invoice_agent.app.handle_cleanup]
+      LoggingConfig:
+        LogGroup: !Ref CleanupLogs
+      Events:
+        Hourly:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: rate(1 hour)
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParametersByPath
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterPath}
+    Metadata:
+      DockerContext: ../api
+      Dockerfile: lambda.Dockerfile
+
+  MigrationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      Timeout: 300
+      ImageConfig:
+        Command: [invoice_agent.app.handle_migration]
+      LoggingConfig:
+        LogGroup: !Ref MigrationLogs
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParametersByPath
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterPath}
+    Metadata:
+      DockerContext: ../api
+      Dockerfile: lambda.Dockerfile
+
+  ApiLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 14
+  WorkerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 14
+  CleanupLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 14
+  MigrationLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 14
+
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: invoice-agent-monthly
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: 5
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+
+Outputs:
+  ApiUrl:
+    Description: Function URL that the web app's /api rewrite points at.
+    Value: !GetAtt ApiFunctionUrl.FunctionUrl
+  MigrationFunctionName:
+    Value: !Ref MigrationFunction
