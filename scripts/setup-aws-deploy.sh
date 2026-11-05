@@ -221,6 +221,25 @@ stack_output() {
     --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text
 }
 
+# model_key_works PROVIDER KEY asks the provider whether KEY is valid.
+model_key_works() {
+  local status
+  # Headers come from printf (a builtin), so the key never shows in the process list.
+  if [[ "$1" == openai ]]; then
+    status=$(curl -s -o /dev/null -w '%{http_code}' https://api.openai.com/v1/models \
+      -H @<(printf 'Authorization: Bearer %s\n' "$2"))
+  else
+    status=$(curl -s -o /dev/null -w '%{http_code}' https://api.anthropic.com/v1/models \
+      -H 'anthropic-version: 2023-06-01' -H @<(printf 'x-api-key: %s\n' "$2"))
+  fi
+  [[ "$status" == 200 ]]
+}
+
+# database_url_is_whole URL catches pastes that lost characters, e.g. a query key without '='.
+database_url_is_whole() {
+  [[ "$1" =~ ^postgres(ql)?://[^:/]+:[^@]+@[^/]+/[^?]+(\?[^=\&]+=[^\&]*(\&[^=\&]+=[^\&]*)*)?$ ]]
+}
+
 run_wizard() {
 
 TOTAL_STAGES=8
@@ -262,11 +281,17 @@ if [[ "$INVOICE_MODEL_PROVIDER" == openai ]]; then
   open_url "https://platform.openai.com/api-keys"
   step "Create new secret key → copy it."
   ask_secret OPENAI_API_KEY "Paste the OpenAI API key:"
+  until model_key_works openai "$OPENAI_API_KEY"; do
+    ask_secret OPENAI_API_KEY "OpenAI rejected that key. Paste it again:"
+  done
   put_parameter OPENAI_API_KEY "$OPENAI_API_KEY"
 else
   open_url "https://console.anthropic.com/settings/keys"
   step "Create Key → copy it."
   ask_secret ANTHROPIC_API_KEY "Paste the Anthropic API key:"
+  until model_key_works anthropic "$ANTHROPIC_API_KEY"; do
+    ask_secret ANTHROPIC_API_KEY "Anthropic rejected that key. Paste it again:"
+  done
   put_parameter ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"
 fi
 note "Also set a monthly spend limit in the provider's billing settings."
@@ -294,8 +319,8 @@ step "New project → Postgres 17 → region AWS Europe Central 1 (Frankfurt)."
 step "Dashboard → Connect → turn on Connection pooling → copy the connection string."
 note "The pooled host contains '-pooler'; the Lambdas open many short connections."
 ask_secret DATABASE_URL "Paste the pooled connection string:"
-until [[ "$DATABASE_URL" == postgres* ]]; do
-  ask_secret DATABASE_URL "That doesn't start with postgres. Paste it again:"
+until database_url_is_whole "$DATABASE_URL"; do
+  ask_secret DATABASE_URL "That isn't a whole postgresql://user:password@host/db?... string. Paste it again:"
 done
 put_parameter DATABASE_URL "$DATABASE_URL"
 pause
