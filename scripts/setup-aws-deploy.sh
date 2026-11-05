@@ -302,13 +302,16 @@ pause
 
 stage "Deploy role and image repository"
 GITHUB_REPOSITORY=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+# GitHub may sign tokens as repo:owner@id/repo@id rather than repo:owner/repo.
+GITHUB_SUBJECT_PREFIX=$(gh api "repos/$GITHUB_REPOSITORY/actions/oidc/customization/sub" \
+  --jq ".sub_claim_prefix // \"repo:$GITHUB_REPOSITORY\"")
 say "Creates stack invoice-agent-bootstrap in $AWS_REGION: a role that only"
 say "$GITHUB_REPOSITORY's main branch can assume, and the Lambda image repository."
 if confirm "Deploy infra/bootstrap.yaml now?"; then
   aws cloudformation deploy --region "$AWS_REGION" \
     --template-file infra/bootstrap.yaml --stack-name invoice-agent-bootstrap \
     --capabilities CAPABILITY_IAM \
-    --parameter-overrides "GitHubRepository=$GITHUB_REPOSITORY"
+    --parameter-overrides "GitHubSubjectPrefix=$GITHUB_SUBJECT_PREFIX"
   set_var AWS_DEPLOY_ROLE_ARN "$(stack_output DeployRoleArn)"
   set_var AWS_IMAGE_REPOSITORY "$(stack_output ImageRepositoryUri)"
 else

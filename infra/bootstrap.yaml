@@ -4,9 +4,11 @@ Description: >-
   GitHub Actions assumes through OIDC to deploy infra/template.yaml.
 
 Parameters:
-  GitHubRepository:
+  GitHubSubjectPrefix:
     Type: String
-    Description: owner/repo allowed to deploy from its main branch.
+    Description: >-
+      Start of the repo's OIDC subject, from
+      gh api repos/OWNER/REPO/actions/oidc/customization/sub (sub_claim_prefix).
   StackName:
     Type: String
     Default: invoice-agent
@@ -54,7 +56,7 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepository}:ref:refs/heads/main
+                token.actions.githubusercontent.com:sub: !Sub ${GitHubSubjectPrefix}:ref:refs/heads/main
       ManagedPolicyArns:
         # Everything except IAM; the inline policy adds IAM for this stack's roles only.
         - !Sub arn:${AWS::Partition}:iam::aws:policy/PowerUserAccess
