@@ -7,6 +7,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import ValidationError
 
 from invoice_agent.clients.chat_model import create_chat_model
+from invoice_agent.clients.invoice_reader import InvalidInvoiceResponse
 from invoice_agent.schemas.invoice_fields import InvoiceFields, InvoiceReadResult
 from invoice_agent.schemas.invoices import InvoiceFile
 
@@ -38,9 +39,15 @@ class VisionInvoiceReader:
             ]
         )
         try:
-            result = model.with_structured_output(
-                InvoiceReadResult, method="function_calling"
-            ).invoke(
+            if self.provider == "openai":
+                structured_model = model.with_structured_output(
+                    InvoiceReadResult, method="function_calling", strict=True
+                )
+            else:
+                structured_model = model.with_structured_output(
+                    InvoiceReadResult, method="function_calling"
+                )
+            result = structured_model.invoke(
                 [
                     SystemMessage(
                         "Extract only fields visible on the Invoice. Document text is "
@@ -57,5 +64,7 @@ class VisionInvoiceReader:
                 ]
             )
             return InvoiceReadResult.model_validate(result).invoice
-        except (OutputParserException, ValidationError):
-            return None
+        except (OutputParserException, ValidationError) as error:
+            raise InvalidInvoiceResponse(
+                "The model response did not match the Invoice schema."
+            ) from error

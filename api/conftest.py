@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from invoice_agent.schemas.invoice_fields import InvoiceFields
     from invoice_agent.schemas.invoices import InvoiceDetail
     from invoice_agent.services.erp_tools import ERPTools
+    from invoice_agent.services.invoice_processing import InvoiceProcessing
 
 
 @pytest.fixture(autouse=True)
@@ -49,13 +50,21 @@ def erp_tools(database_url: str, embeddings: ScriptedEmbeddings) -> ERPTools:
 
 
 @pytest.fixture
-def model_api() -> Iterator[tuple[str, list[dict[str, object]]]]:
+def model_requests() -> list[dict[str, object]]:
+    return []
+
+
+@pytest.fixture
+def model_api(
+    model_requests: list[dict[str, object]],
+) -> Iterator[tuple[str, list[dict[str, object]]]]:
     responses: list[dict[str, object]] = []
 
     class ModelHandler(BaseHTTPRequestHandler):
         def do_POST(self) -> None:
             length = int(self.headers.get("Content-Length", "0"))
             request = json.loads(self.rfile.read(length))
+            model_requests.append(request)
             tool = request["tools"][0]
             arguments = responses.pop(0)
             if "function" in tool:
@@ -126,6 +135,28 @@ def model_api() -> Iterator[tuple[str, list[dict[str, object]]]]:
         finally:
             server.shutdown()
             server_thread.join()
+
+
+@pytest.fixture
+def openai_processing(
+    database_url: str,
+    erp_tools: ERPTools,
+    model_api: tuple[str, list[dict[str, object]]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> InvoiceProcessing:
+    from invoice_agent.clients.vision_reader import VisionInvoiceReader
+    from invoice_agent.services.daily_ai_limit import DailyAILimit
+    from invoice_agent.services.invoice_processing import InvoiceProcessing
+
+    base_url, _ = model_api
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", f"{base_url}/v1")
+    return InvoiceProcessing(
+        database_url,
+        reader=VisionInvoiceReader(provider="openai", model="test-model"),
+        erp_tools=erp_tools,
+        daily_ai_limit=DailyAILimit(database_url),
+    )
 
 
 @pytest.fixture

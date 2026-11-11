@@ -31,6 +31,13 @@ values divided by all scored values. Strings match exactly, numbers compare as
 Decimals, dates compare as dates, and lines are compared in their printed order.
 Missing and extra lines count as errors for the labelled line fields.
 
+This is strict end-to-end field accuracy, not OCR-only accuracy: a rejected or
+missing model response loses every labelled field for that Invoice. Reports
+also show how many Invoices returned fields, invalid response counts, fields
+missing because a read failed, exact-text mismatches and other value mismatches.
+These diagnostics explain the score without changing it or treating text
+differences as automatically harmless.
+
 [fake.json](fake.json) contains separate scripted responses and an explicit
 score baseline: one wrong total, one wrong quantity, and one unreadable Invoice.
 That gives **32/45 (71.11%)**, not a real model's accuracy. The runner never
@@ -38,5 +45,6 @@ copies labels into its fake responses. CI checks every field and the overall
 score, including failures, against this baseline.
 
 This is a tiny repeatable check, not a representative quality estimate. Some
-images in the source dataset may be synthetic. Real-model runs and cost/time
-reporting belong to the separate cost/time ticket.
+images in the source dataset may be synthetic. The root
+[README](../../../../README.md) links the measured real-model reports and the
+commands for accuracy, cost and timing evaluations.

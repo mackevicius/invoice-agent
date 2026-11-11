@@ -5,6 +5,10 @@ from invoice_agent.schemas.invoice_fields import InvoiceFields
 from invoice_agent.schemas.invoices import InvoiceFile
 
 
+class InvalidInvoiceResponse(ValueError):
+    pass
+
+
 class InvoiceReader(Protocol):
     @property
     def uses_live_model(self) -> bool: ...

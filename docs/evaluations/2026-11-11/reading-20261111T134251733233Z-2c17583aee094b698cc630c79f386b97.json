@@ -1,0 +1,395 @@
+{
+  "evaluated_at": "2026-11-11T13:42:51.733233Z",
+  "sample_version": "generated-invoices-v1",
+  "sample_sha256": "85c68eb919a9b490cfb9c9493ee7ec5e91349e94790a1eda929d558336ed3eb2",
+  "scoring_version": "reading-fields-v1",
+  "provider": "openai",
+  "model": "gpt-4.1-mini",
+  "average_cost_usd": 0.0013695,
+  "average_time_seconds": 2.78425,
+  "sample_source": {
+    "kind": "synthetic",
+    "description": "Original fictional Invoice fixtures for PNG and PDF format coverage; not derived from Kaggle.",
+    "creator": "Invoice Agent",
+    "generator": "PyMuPDF 1.28.2",
+    "generated_on": "2026-11-03",
+    "formats": ["image/png", "application/pdf"],
+    "pdf_pages": {
+      "invoice-single-page.pdf": 1,
+      "invoice-multi-page.pdf": 2
+    }
+  },
+  "per_field": {
+    "supplier_name": {
+      "correct": 4,
+      "total": 4,
+      "accuracy": 1.0
+    },
+    "invoice_number": {
+      "correct": 4,
+      "total": 4,
+      "accuracy": 1.0
+    },
+    "purchase_order_number": {
+      "correct": 4,
+      "total": 4,
+      "accuracy": 1.0
+    },
+    "issued_on": {
+      "correct": 4,
+      "total": 4,
+      "accuracy": 1.0
+    },
+    "currency": {
+      "correct": 4,
+      "total": 4,
+      "accuracy": 1.0
+    },
+    "subtotal": {
+      "correct": 4,
+      "total": 4,
+      "accuracy": 1.0
+    },
+    "tax": {
+      "correct": 4,
+      "total": 4,
+      "accuracy": 1.0
+    },
+    "total": {
+      "correct": 4,
+      "total": 4,
+      "accuracy": 1.0
+    },
+    "lines.description": {
+      "correct": 13,
+      "total": 13,
+      "accuracy": 1.0
+    },
+    "lines.item_code": {
+      "correct": 13,
+      "total": 13,
+      "accuracy": 1.0
+    },
+    "lines.quantity": {
+      "correct": 13,
+      "total": 13,
+      "accuracy": 1.0
+    },
+    "lines.unit_price": {
+      "correct": 13,
+      "total": 13,
+      "accuracy": 1.0
+    }
+  },
+  "overall": {
+    "correct": 84,
+    "total": 84,
+    "accuracy": 1.0
+  },
+  "invoices": [
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/4e7db3a9e96ad88cbb8f8d258a7b1ee1",
+      "cost_usd": 0.00165,
+      "time_seconds": 3.153,
+      "metrics_error": null,
+      "generation_count": 1,
+      "case_id": "generated-png-clean",
+      "invoice_id": "e0af3066-9e96-4b02-8539-d3bf6e00352c",
+      "expected": {
+        "supplier_name": "Northwind Paper",
+        "invoice_number": "SYN-2026-001",
+        "purchase_order_number": "PO-GEN-001",
+        "issued_on": "2026-10-20",
+        "currency": "EUR",
+        "lines": [
+          {
+            "description": "A4 paper, box",
+            "item_code": "NP-001",
+            "quantity": "4.00",
+            "unit_price": "12.50"
+          },
+          {
+            "description": "Desk organiser",
+            "item_code": "NP-002",
+            "quantity": "2.00",
+            "unit_price": "15.00"
+          }
+        ],
+        "subtotal": "80.00",
+        "tax": "16.00",
+        "total": "96.00"
+      },
+      "actual": {
+        "supplier_name": "Northwind Paper",
+        "invoice_number": "SYN-2026-001",
+        "purchase_order_number": "PO-GEN-001",
+        "issued_on": "2026-10-20",
+        "currency": "EUR",
+        "lines": [
+          {
+            "description": "A4 paper, box",
+            "item_code": "NP-001",
+            "quantity": "4",
+            "unit_price": "12.5"
+          },
+          {
+            "description": "Desk organiser",
+            "item_code": "NP-002",
+            "quantity": "2",
+            "unit_price": "15"
+          }
+        ],
+        "subtotal": "80",
+        "tax": "16",
+        "total": "96"
+      },
+      "errors": [],
+      "read_failure": null
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/783b7fe795dfc5b3288e609503b97bbb",
+      "cost_usd": 0.0016772,
+      "time_seconds": 1.869,
+      "metrics_error": null,
+      "generation_count": 1,
+      "case_id": "generated-png-compact",
+      "invoice_id": "e989cb95-0c86-4dee-9d8f-d55bdc9a7c95",
+      "expected": {
+        "supplier_name": "Harbour Studio",
+        "invoice_number": "SYN-2026-002",
+        "purchase_order_number": "PO-GEN-002",
+        "issued_on": "2026-10-21",
+        "currency": "USD",
+        "lines": [
+          {
+            "description": "Website maintenance",
+            "item_code": "HS-001",
+            "quantity": "3.00",
+            "unit_price": "75.00"
+          },
+          {
+            "description": "Hosting",
+            "item_code": "HS-002",
+            "quantity": "2.00",
+            "unit_price": "12.50"
+          },
+          {
+            "description": "Domain renewal",
+            "item_code": "HS-003",
+            "quantity": "1.00",
+            "unit_price": "20.00"
+          }
+        ],
+        "subtotal": "270.00",
+        "tax": "0.00",
+        "total": "270.00"
+      },
+      "actual": {
+        "supplier_name": "Harbour Studio",
+        "invoice_number": "SYN-2026-002",
+        "purchase_order_number": "PO-GEN-002",
+        "issued_on": "2026-10-21",
+        "currency": "USD",
+        "lines": [
+          {
+            "description": "Website maintenance",
+            "item_code": "HS-001",
+            "quantity": "3",
+            "unit_price": "75"
+          },
+          {
+            "description": "Hosting",
+            "item_code": "HS-002",
+            "quantity": "2",
+            "unit_price": "12.5"
+          },
+          {
+            "description": "Domain renewal",
+            "item_code": "HS-003",
+            "quantity": "1",
+            "unit_price": "20"
+          }
+        ],
+        "subtotal": "270",
+        "tax": "0",
+        "total": "270"
+      },
+      "errors": [],
+      "read_failure": null
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/9b4f8403d46b54e810f726f58f799984",
+      "cost_usd": 0.0008148,
+      "time_seconds": 3.124,
+      "metrics_error": null,
+      "generation_count": 1,
+      "case_id": "generated-pdf-single-page",
+      "invoice_id": "9dbe54b7-c257-4679-bce3-20b38f335ebd",
+      "expected": {
+        "supplier_name": "Riverbend Equipment",
+        "invoice_number": "SYN-2026-003",
+        "purchase_order_number": "PO-GEN-003",
+        "issued_on": "2026-10-22",
+        "currency": "EUR",
+        "lines": [
+          {
+            "description": "Safety gloves, pair",
+            "item_code": "RE-001",
+            "quantity": "5.00",
+            "unit_price": "6.40"
+          },
+          {
+            "description": "Protective goggles",
+            "item_code": "RE-002",
+            "quantity": "3.00",
+            "unit_price": "12.00"
+          }
+        ],
+        "subtotal": "68.00",
+        "tax": "13.60",
+        "total": "81.60"
+      },
+      "actual": {
+        "supplier_name": "Riverbend Equipment",
+        "invoice_number": "SYN-2026-003",
+        "purchase_order_number": "PO-GEN-003",
+        "issued_on": "2026-10-22",
+        "currency": "EUR",
+        "lines": [
+          {
+            "description": "Safety gloves, pair",
+            "item_code": "RE-001",
+            "quantity": "5",
+            "unit_price": "6.4"
+          },
+          {
+            "description": "Protective goggles",
+            "item_code": "RE-002",
+            "quantity": "3",
+            "unit_price": "12.0"
+          }
+        ],
+        "subtotal": "68.0",
+        "tax": "13.6",
+        "total": "81.6"
+      },
+      "errors": [],
+      "read_failure": null
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/87489c372e6578bb02f6143182e1ff1e",
+      "cost_usd": 0.001336,
+      "time_seconds": 2.991,
+      "metrics_error": null,
+      "generation_count": 1,
+      "case_id": "generated-pdf-multi-page",
+      "invoice_id": "6fa60d47-f8fc-4832-afaf-f107897686f5",
+      "expected": {
+        "supplier_name": "Meadow Logistics",
+        "invoice_number": "SYN-2026-004",
+        "purchase_order_number": "PO-GEN-004",
+        "issued_on": "2026-10-23",
+        "currency": "GBP",
+        "lines": [
+          {
+            "description": "Packing boxes, pack",
+            "item_code": "ML-001",
+            "quantity": "4.00",
+            "unit_price": "15.00"
+          },
+          {
+            "description": "Packing tape, roll",
+            "item_code": "ML-002",
+            "quantity": "6.00",
+            "unit_price": "2.50"
+          },
+          {
+            "description": "Bubble wrap, roll",
+            "item_code": "ML-003",
+            "quantity": "2.00",
+            "unit_price": "12.50"
+          },
+          {
+            "description": "Pallet delivery",
+            "item_code": "ML-004",
+            "quantity": "1.00",
+            "unit_price": "40.00"
+          },
+          {
+            "description": "Storage, day",
+            "item_code": "ML-005",
+            "quantity": "5.00",
+            "unit_price": "8.00"
+          },
+          {
+            "description": "Collection service",
+            "item_code": "ML-006",
+            "quantity": "1.00",
+            "unit_price": "20.00"
+          }
+        ],
+        "subtotal": "200.00",
+        "tax": "40.00",
+        "total": "240.00"
+      },
+      "actual": {
+        "supplier_name": "Meadow Logistics",
+        "invoice_number": "SYN-2026-004",
+        "purchase_order_number": "PO-GEN-004",
+        "issued_on": "2026-10-23",
+        "currency": "GBP",
+        "lines": [
+          {
+            "description": "Packing boxes, pack",
+            "item_code": "ML-001",
+            "quantity": "4",
+            "unit_price": "15"
+          },
+          {
+            "description": "Packing tape, roll",
+            "item_code": "ML-002",
+            "quantity": "6",
+            "unit_price": "2.5"
+          },
+          {
+            "description": "Bubble wrap, roll",
+            "item_code": "ML-003",
+            "quantity": "2",
+            "unit_price": "12.5"
+          },
+          {
+            "description": "Pallet delivery",
+            "item_code": "ML-004",
+            "quantity": "1",
+            "unit_price": "40"
+          },
+          {
+            "description": "Storage, day",
+            "item_code": "ML-005",
+            "quantity": "5",
+            "unit_price": "8"
+          },
+          {
+            "description": "Collection service",
+            "item_code": "ML-006",
+            "quantity": "1",
+            "unit_price": "20"
+          }
+        ],
+        "subtotal": "200",
+        "tax": "40",
+        "total": "240"
+      },
+      "errors": [],
+      "read_failure": null
+    }
+  ],
+  "diagnostics": {
+    "invoices_with_fields": 4,
+    "invoices_without_fields": 0,
+    "invalid_responses": 0,
+    "failed_read_fields": 0,
+    "text_mismatches": 0,
+    "value_mismatches": 0
+  }
+}

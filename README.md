@@ -47,35 +47,54 @@ Measured **11 November 2026**, using **OpenAI `gpt-4.1-mini`** locally with
 Postgres and pgvector. Links open the full JSON evidence, including sample
 checksums, field errors and per-Invoice Langfuse traces.
 
-| Eval                                                                                                                                      | Accuracy               | Wrong Auto-Approvals | Average cost / Invoice (USD) | Average time / Invoice |
-| ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | -------------------- | ---------------------------- | ---------------------- |
-| [Kaggle reading, 3 images](docs/evaluations/2026-11-11/reading-20261111T115557266167Z-34b595527e0945adaac99848c3cdaeeb.json)              | 22/45 fields (48.89%)  | Not scored           | $0.00155                     | 3.70 s                 |
-| [Generated reading, 4 PNG/PDF Invoices](docs/evaluations/2026-11-11/reading-20261111T121010786849Z-ec494fcb5d8a43b7ab172c775697193c.json) | 84/84 fields (100%)    | Not scored           | $0.00138                     | 2.86 s                 |
-| [Decisions, 14 synthetic cases](docs/evaluations/2026-11-11/decisions-20261111T121323585686Z-b2a642240106484db9e1fc9b3b4476d3.json)       | 14/14 decisions (100%) | 0                    | $0.0000164                   | 0.31 s                 |
+| Eval                                                                                                                                         | Strict result               | Wrong Auto-Approvals | Average cost / Invoice (USD) | Average time / Invoice |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- | -------------------- | ---------------------------- | ---------------------- |
+| [Kaggle extraction, 3 images](docs/evaluations/2026-11-11/reading-20261111T134144231602Z-cefd4be1f0c64607bae8cb5904b1577d.json)              | 40/45 exact fields (88.89%) | Not scored           | $0.00250                     | 3.87 s                 |
+| [Generated extraction, 4 PNG/PDF Invoices](docs/evaluations/2026-11-11/reading-20261111T134251733233Z-2c17583aee094b698cc630c79f386b97.json) | 84/84 exact fields (100%)   | Not scored           | $0.00137                     | 2.78 s                 |
+| [Decisions, 14 synthetic cases](docs/evaluations/2026-11-11/decisions-20261111T121323585686Z-b2a642240106484db9e1fc9b3b4476d3.json)          | 14/14 decisions (100%)      | 0                    | $0.0000164                   | 0.31 s                 |
+
+The reading rows measure **end-to-end exact-field accuracy**, not how much text
+the model can see. A field scores only if the reading step returns a valid
+Invoice and its value exactly matches the label. A failed read counts every
+labelled field as missing; text spacing and accents are not normalised away.
+
+The reading rows were rerun with strict OpenAI response schemas:
+
+- **Kaggle:** fields returned for **3/3 Invoices**, no invalid responses or
+  missing-read fields. The five mismatches are four description differences
+  (spacing or an accent) and one date mismatch. All labelled quantities, tax
+  and totals match.
+- **Generated:** fields returned for **4/4 Invoices**, with no mismatches or
+  response failures.
+
+These are tiny samples, not a representative accuracy estimate. See the
+[dataset credit, licences and scoring notes](#reading-accuracy).
 
 Decision evals start from labelled Invoice fields and use real model line
 pairing when needed; most cases need no model call. Their cost and time exclude
 document reading and are not end-to-end upload measurements.
 
-Reading accuracy counts labelled fields, not whole documents. The Kaggle result
-is weak; the perfect generated score does not cancel it out. These tiny samples
-are reproducible checks, not a representative estimate. See the
-[dataset credit, licences and scoring notes](#reading-accuracy).
-
 Cost and time come from Langfuse, averaged across every Invoice in each sample.
 Time covers the completed **Invoice run**, not just the model call; it excludes
 cloud queue delays and cold starts. These are local measurements, not hosted
-latency promises. The Kaggle report's measurements were recovered from its
-existing traces after fixing collection of spans with an upstream parent; the
-documents were not re-read for that recovery.
+latency promises.
+
+The [earlier Kaggle run](docs/evaluations/2026-11-11/reading-20261111T115557266167Z-34b595527e0945adaac99848c3cdaeeb.json)
+is retained: its 22/45 score included 19 missing fields because one malformed
+model response was rejected, plus three exact-text differences and one date
+mismatch. The [earlier generated run](docs/evaluations/2026-11-11/reading-20261111T121010786849Z-ec494fcb5d8a43b7ab172c775697193c.json)
+is also retained. Neither the labels nor the strict scoring rules were changed
+to improve the new results.
 
 ### What Free CI Proves
 
-Normal CI uses scripted models: **14/14 decisions, zero wrong Auto-Approvals**;
-reading baselines of **32/45 (71.11%)** on Kaggle and **83/84 (98.81%)** on the
-generated sample. The reading fakes deliberately make mistakes to check the
-scorer. These are regression gates, not real-model quality or cost numbers.
-CI also blocks unexpected changes to field scores, decision statuses or reasons.
+**These are software tests, not AI benchmarks.** Normal CI never calls a real
+model. Fixed fake answers deliberately include a wrong total, a wrong quantity
+and an unreadable Invoice. CI checks that the scorer catches those planted
+mistakes, and that all 14 labelled decision cases keep the expected outcome
+with zero wrong Auto-Approvals. It also blocks unexpected changes to field
+scores, decision statuses or reasons. Fake score baselines are documented with
+the eval commands below, separately from the real-model results above.
 See [tests](#checks-and-tests), [reading evals](#reading-accuracy),
 [decision evals](#decision-accuracy) and [paid eval commands](#live-model-evaluations).
 
@@ -521,9 +540,13 @@ no cloud credentials or paid services are required.
 ## Reading Accuracy
 
 The reading eval processes three fixed, labelled Invoice images through the same
-Process an Invoice interface as the app. It reports accuracy for each labelled
-field and overall, then saves a JSON report with the date, model, sample version
-and checksum, source credit, expected and read values, and mistakes.
+Process an Invoice interface as the app. It reports strict end-to-end field
+accuracy, not OCR-only accuracy. JSON reports retain the date, model, sample
+version and checksum, source credit, expected and returned values, and mistakes.
+The `diagnostics` section separates Invoices with no returned fields (including
+invalid model responses), missing fields from those failed reads, exact-text
+mismatches, and other value mismatches. Text differences are not automatically
+harmless and still count as errors; dates and amounts also remain strict.
 
 Run it with one command:
 

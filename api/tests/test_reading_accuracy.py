@@ -23,6 +23,61 @@ from invoice_agent.services.erp_tools import ERPTools
 from invoice_agent.services.invoice_processing import InvoiceProcessing
 
 
+def test_report_separates_failed_reads_from_text_and_value_mismatches(
+    matching_company: UUID,
+    matching_fields: InvoiceFields,
+    openai_processing: InvoiceProcessing,
+    model_api: tuple[str, list[dict[str, object]]],
+) -> None:
+    _, responses = model_api
+    different_fields = matching_fields.model_copy(
+        update={"supplier_name": "Paper&Co.", "total": Decimal("3214.09")}
+    )
+    invalid_fields = matching_fields.model_dump(mode="json")
+    invalid_fields["lines"][0]["unexpected"] = "field"
+    responses.extend(
+        [
+            {"invoice": different_fields.model_dump(mode="json")},
+            {"invoice": invalid_fields},
+            {"invoice": None},
+        ]
+    )
+    cases = [
+        ReadingCase(
+            case_id=f"diagnostic-{position}",
+            document=InvoiceFile(
+                filename=f"invoice-{position}.png",
+                content_type="image/png",
+                content=b"Invoice image",
+            ),
+            expected=ReadingLabels.model_validate(matching_fields.model_dump()),
+        )
+        for position in range(3)
+    ]
+
+    report = evaluate_reading(
+        openai_processing,
+        matching_company,
+        cases,
+        sample_version="test-v1",
+        model="test-model",
+    )
+
+    assert report.overall.correct == 9
+    assert report.overall.total == 33
+    assert report.diagnostics is not None
+    assert report.diagnostics.model_dump() == {
+        "invoices_with_fields": 1,
+        "invoices_without_fields": 2,
+        "invalid_responses": 1,
+        "failed_read_fields": 22,
+        "text_mismatches": 1,
+        "value_mismatches": 1,
+    }
+    assert report.invoices[1].read_failure == "invalid_response"
+    assert report.invoices[2].read_failure == "no_fields"
+
+
 def test_wrong_total_reduces_reading_accuracy(
     matching_company: UUID,
     matching_fields: InvoiceFields,

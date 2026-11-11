@@ -10,7 +10,7 @@ from psycopg.types.json import Jsonb
 from pydantic import JsonValue
 
 from invoice_agent.clients.invoice_files import InvoiceFileStore
-from invoice_agent.clients.invoice_reader import InvoiceReader
+from invoice_agent.clients.invoice_reader import InvalidInvoiceResponse, InvoiceReader
 from invoice_agent.clients.line_pairing import LinePairer
 from invoice_agent.clients.tracing import RunTracing
 from invoice_agent.schemas.erp_tools import GoodsReceipt, PurchaseOrder, Supplier
@@ -186,6 +186,15 @@ class InvoiceProcessing(Invoices):
                 self._fail_read(company_id, invoice_id, "daily AI limit reached")
                 return state
             fields = self.reader.read(document)
+        except InvalidInvoiceResponse:
+            self._fail_read(
+                company_id,
+                invoice_id,
+                "The model returned an invalid Invoice response. "
+                "A Reviewer needs to check this Invoice.",
+                read_failure="invalid_response",
+            )
+            return state
         except Exception:
             logger.exception("Invoice reading failed for %s", invoice_id)
             self._fail_read(
@@ -775,7 +784,17 @@ class InvoiceProcessing(Invoices):
                 connection, company_id, invoice_id, skip_reason or reasons[0]
             )
 
-    def _fail_read(self, company_id: UUID, invoice_id: UUID, reason: str) -> None:
+    def _fail_read(
+        self,
+        company_id: UUID,
+        invoice_id: UUID,
+        reason: str,
+        *,
+        read_failure: Literal["invalid_response"] | None = None,
+    ) -> None:
+        outputs: dict[str, JsonValue] = {"reason": reason}
+        if read_failure is not None:
+            outputs["read_failure"] = read_failure
         with psycopg.connect(self.database_url) as connection:
             connection.execute(
                 """UPDATE invoices SET status = 'In Review', reasons = %s
@@ -788,7 +807,7 @@ class InvoiceProcessing(Invoices):
                                      WHERE company_id = %s AND invoice_id = %s
                                          AND name = 'Read Invoice'""",
                 (
-                    Jsonb({"reason": reason}),
+                    Jsonb(outputs),
                     datetime.now(UTC),
                     company_id,
                     invoice_id,

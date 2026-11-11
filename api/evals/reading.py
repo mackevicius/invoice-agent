@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_serializer
@@ -86,6 +87,16 @@ class InvoiceAccuracy(InvoiceMetrics):
     expected: ReadingLabels
     actual: InvoiceFields | None
     errors: list[str]
+    read_failure: Literal["invalid_response", "no_fields"] | None = None
+
+
+class ReadingDiagnostics(BaseModel):
+    invoices_with_fields: int = 0
+    invoices_without_fields: int = 0
+    invalid_responses: int = 0
+    failed_read_fields: int = 0
+    text_mismatches: int = 0
+    value_mismatches: int = 0
 
 
 class ReadingReport(EvaluationReport):
@@ -94,6 +105,7 @@ class ReadingReport(EvaluationReport):
     per_field: dict[str, Accuracy]
     overall: Accuracy
     invoices: list[InvoiceAccuracy]
+    diagnostics: ReadingDiagnostics | None = None
 
 
 class SampleFile(BaseModel):
@@ -190,6 +202,7 @@ def evaluate_reading(
         raise ValueError("The reading sample must contain at least one Invoice.")
     scores: dict[str, Accuracy] = {}
     invoices: list[InvoiceAccuracy] = []
+    diagnostics = ReadingDiagnostics()
 
     def record(
         field: str,
@@ -197,6 +210,8 @@ def evaluate_reading(
         actual: object,
         path: str,
         errors: list[str],
+        *,
+        failed_read: bool,
     ) -> None:
         score = scores.setdefault(field, Accuracy())
         score.total += 1
@@ -204,6 +219,12 @@ def evaluate_reading(
             score.correct += 1
         else:
             errors.append(path)
+            if failed_read:
+                diagnostics.failed_read_fields += 1
+            elif isinstance(expected, str) and isinstance(actual, str):
+                diagnostics.text_mismatches += 1
+            else:
+                diagnostics.value_mismatches += 1
 
     for case in cases:
         uploaded = processing.upload(company_id, case.document)
@@ -211,6 +232,18 @@ def evaluate_reading(
             processing, company_id, uploaded.id
         )
         errors: list[str] = []
+        read_failure: Literal["invalid_response", "no_fields"] | None = None
+        if result.fields is None:
+            diagnostics.invoices_without_fields += 1
+            read_outputs = result.steps[0].outputs or {}
+            read_failure = (
+                "invalid_response"
+                if read_outputs.get("read_failure") == "invalid_response"
+                else "no_fields"
+            )
+            diagnostics.invalid_responses += read_failure == "invalid_response"
+        else:
+            diagnostics.invoices_with_fields += 1
 
         expected_values: dict[str, object] = case.expected.model_dump()
         actual_values: dict[str, object] = (
@@ -218,7 +251,14 @@ def evaluate_reading(
         )
         for field, expected in expected_values.items():
             if field != "lines" and expected is not None:
-                record(field, expected, actual_values.get(field), field, errors)
+                record(
+                    field,
+                    expected,
+                    actual_values.get(field),
+                    field,
+                    errors,
+                    failed_read=result.fields is None,
+                )
 
         expected_lines = case.expected.lines or []
         actual_lines = result.fields.lines if result.fields and expected_lines else []
@@ -251,6 +291,7 @@ def evaluate_reading(
                     actual_line.get(field),
                     f"lines.{position}.{field}",
                     errors,
+                    failed_read=result.fields is None,
                 )
         invoices.append(
             InvoiceAccuracy(
@@ -261,6 +302,7 @@ def evaluate_reading(
                 expected=case.expected,
                 actual=result.fields,
                 errors=errors,
+                read_failure=read_failure,
             )
         )
     collect_metrics(invoices, processing.tracing)
@@ -276,6 +318,7 @@ def evaluate_reading(
             total=sum(score.total for score in scores.values()),
         ),
         invoices=invoices,
+        diagnostics=diagnostics,
     )
 
 
@@ -351,6 +394,16 @@ def main(argv: list[str] | None = None) -> int:
             f"Overall: {report.overall.correct}/{report.overall.total} "
             f"({report.overall.accuracy or 0:.2%})"
         )
+        if report.diagnostics is not None:
+            diagnostics = report.diagnostics
+            print(
+                f"Invoices with fields: {diagnostics.invoices_with_fields}/"
+                f"{len(report.invoices)}"
+            )
+            print(f"Invalid model responses: {diagnostics.invalid_responses}")
+            print(f"Missing fields from failed reads: {diagnostics.failed_read_fields}")
+            print(f"Exact-text mismatches: {diagnostics.text_mismatches}")
+            print(f"Other value mismatches: {diagnostics.value_mismatches}")
         print(f"Saved: {path}")
         report.require_measurements()
         if (

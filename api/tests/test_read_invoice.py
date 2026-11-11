@@ -13,6 +13,66 @@ from invoice_agent.services.erp_tools import ERPTools
 from invoice_agent.services.invoice_processing import InvoiceProcessing
 
 
+def test_live_reader_enforces_strict_output_and_returns_fields(
+    matching_company: UUID,
+    matching_fields: InvoiceFields,
+    openai_processing: InvoiceProcessing,
+    model_api: tuple[str, list[dict[str, object]]],
+    model_requests: list[dict[str, object]],
+) -> None:
+    _, responses = model_api
+    responses.append({"invoice": matching_fields.model_dump(mode="json")})
+    uploaded = openai_processing.upload(
+        matching_company,
+        InvoiceFile(
+            filename="invoice.png",
+            content_type="image/png",
+            content=b"Invoice image",
+        ),
+    )
+
+    result = openai_processing.process(matching_company, uploaded.id)
+
+    assert result.fields == matching_fields
+    tools = model_requests[0]["tools"]
+    assert isinstance(tools, list)
+    assert tools[0]["function"].get("strict") is True
+
+
+def test_invalid_model_response_is_not_reported_as_an_unreadable_document(
+    matching_company: UUID,
+    matching_fields: InvoiceFields,
+    openai_processing: InvoiceProcessing,
+    model_api: tuple[str, list[dict[str, object]]],
+) -> None:
+    _, responses = model_api
+    fields = matching_fields.model_dump(mode="json")
+    fields["lines"][0]["unexpected"] = "field"
+    responses.append({"invoice": fields})
+    uploaded = openai_processing.upload(
+        matching_company,
+        InvoiceFile(
+            filename="invoice.png",
+            content_type="image/png",
+            content=b"Invoice image",
+        ),
+    )
+
+    result = openai_processing.process(matching_company, uploaded.id)
+
+    reason = (
+        "The model returned an invalid Invoice response. "
+        "A Reviewer needs to check this Invoice."
+    )
+    assert result.status == "In Review"
+    assert result.fields is None
+    assert result.reasons == [reason]
+    assert result.steps[0].outputs == {
+        "reason": reason,
+        "read_failure": "invalid_response",
+    }
+
+
 def test_read_fields_and_recorded_step(
     client: TestClient, database_url: str, erp_tools: ERPTools
 ) -> None:
