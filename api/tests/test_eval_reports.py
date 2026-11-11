@@ -80,7 +80,12 @@ def eval_tracing(
             client.shutdown()
 
 
-def observation_page(cost_usd: float | None, seconds: int) -> httpx.Response:
+def observation_page(
+    cost_usd: float | None,
+    seconds: int,
+    *,
+    parent_observation_id: str | None = None,
+) -> httpx.Response:
     return httpx.Response(
         200,
         json={
@@ -90,7 +95,7 @@ def observation_page(cost_usd: float | None, seconds: int) -> httpx.Response:
                     "project_id": "eval-project",
                     "type": "SPAN",
                     "name": "Invoice run",
-                    "parent_observation_id": None,
+                    "parent_observation_id": parent_observation_id,
                     "start_time": "2026-11-03T10:00:00Z",
                     "end_time": f"2026-11-03T10:00:{seconds:02d}Z",
                 },
@@ -130,7 +135,9 @@ def live_settings(
     )
 
 
+@pytest.mark.parametrize("parent_observation_id", [None, "upstream-span"])
 def test_reading_report_averages_cost_and_time_from_langfuse(
+    parent_observation_id: str | None,
     matching_company: UUID,
     invoice_document: InvoiceFile,
     matching_fields: InvoiceFields,
@@ -139,7 +146,12 @@ def test_reading_report_averages_cost_and_time_from_langfuse(
     eval_tracing: tuple[RunTracing, list[httpx.Response]],
 ) -> None:
     tracing, pages = eval_tracing
-    pages.extend([observation_page(0.01, 2), observation_page(0.03, 4)])
+    pages.extend(
+        [
+            observation_page(0.01, 2, parent_observation_id=parent_observation_id),
+            observation_page(0.03, 4, parent_observation_id=parent_observation_id),
+        ]
+    )
     processing = InvoiceProcessing(
         database_url,
         reader=ScriptedInvoiceReader(matching_fields),

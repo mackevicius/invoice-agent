@@ -87,7 +87,6 @@ def collect_metrics(invoices: Sequence[InvoiceMetrics], tracing: RunTracing) -> 
                         observation
                         for observation in observations
                         if observation.name == "Invoice run"
-                        and observation.parent_observation_id is None
                     ),
                     None,
                 )

@@ -1,0 +1,240 @@
+{
+  "evaluated_at": "2026-11-11T12:13:23.585686Z",
+  "sample_version": "synthetic-decisions-v1",
+  "sample_sha256": "d60a987ea29a8e05625c747b8bfd526f5d0eecfbbdfd867f2916e7532ad9ed1a",
+  "scoring_version": "decision-outcomes-v1",
+  "provider": "openai",
+  "model": "gpt-4.1-mini",
+  "average_cost_usd": 0.000016428571357142858,
+  "average_time_seconds": 0.3126428571428571,
+  "correct": 14,
+  "total": 14,
+  "accuracy": 1.0,
+  "wrong_auto_approvals": 0,
+  "invoices": [
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/f4213c804b3694250e1a68708108a3a9",
+      "cost_usd": 0.0,
+      "time_seconds": 0.519,
+      "metrics_error": null,
+      "generation_count": 0,
+      "case_id": "clean-auto-approval",
+      "invoice_id": "3de3f6a0-38c5-437e-9581-ff587089890f",
+      "expected_status": "Auto-Approved",
+      "actual_status": "Auto-Approved",
+      "expected_reasons": [],
+      "actual_reasons": [],
+      "correct": true
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/4086e0dc10cd61598f4a60d14cbb7d1b",
+      "cost_usd": 0.0,
+      "time_seconds": 0.098,
+      "metrics_error": null,
+      "generation_count": 0,
+      "case_id": "price-over-tolerance",
+      "invoice_id": "1c03a261-fa86-41da-a276-13cde27a26cd",
+      "expected_status": "In Review",
+      "actual_status": "In Review",
+      "expected_reasons": [
+        "Line 1 (Recycled A4 paper, box): unit price is more than 2% above the Purchase Order."
+      ],
+      "actual_reasons": [
+        "Line 1 (Recycled A4 paper, box): unit price is more than 2% above the Purchase Order."
+      ],
+      "correct": true
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/c528b4bd7ac609c6b43386381ae863a9",
+      "cost_usd": 0.0,
+      "time_seconds": 0.105,
+      "metrics_error": null,
+      "generation_count": 0,
+      "case_id": "lower-price",
+      "invoice_id": "bde87007-a232-4f01-9773-a3dde25c83f7",
+      "expected_status": "Auto-Approved",
+      "actual_status": "Auto-Approved",
+      "expected_reasons": [],
+      "actual_reasons": [],
+      "correct": true
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/dd6014116862c9025b600ce8b7db10fb",
+      "cost_usd": 0.0,
+      "time_seconds": 0.11,
+      "metrics_error": null,
+      "generation_count": 0,
+      "case_id": "quantity-mismatch",
+      "invoice_id": "550628af-a10e-45ac-99f9-45a187417917",
+      "expected_status": "In Review",
+      "actual_status": "In Review",
+      "expected_reasons": [
+        "Line 1 (Recycled A4 paper, box): invoiced quantity does not equal received quantity."
+      ],
+      "actual_reasons": [
+        "Line 1 (Recycled A4 paper, box): invoiced quantity does not equal received quantity."
+      ],
+      "correct": true
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/90c6e892cf148537fb6ddf7a7fe9bbb9",
+      "cost_usd": 0.0,
+      "time_seconds": 0.127,
+      "metrics_error": null,
+      "generation_count": 0,
+      "case_id": "partial-delivery",
+      "invoice_id": "53d74337-84f1-4009-a329-3ae03f457692",
+      "expected_status": "Auto-Approved",
+      "actual_status": "Auto-Approved",
+      "expected_reasons": [],
+      "actual_reasons": [],
+      "correct": true
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/357a08949a62dd4857df0ca0998f46b2",
+      "cost_usd": 0.0,
+      "time_seconds": 0.104,
+      "metrics_error": null,
+      "generation_count": 0,
+      "case_id": "received-more-than-ordered",
+      "invoice_id": "73a6a5fd-585c-4365-8300-776bd6e9d27b",
+      "expected_status": "In Review",
+      "actual_status": "In Review",
+      "expected_reasons": [
+        "Line 1 (Recycled A4 paper, box): received quantity exceeds the Purchase Order quantity."
+      ],
+      "actual_reasons": [
+        "Line 1 (Recycled A4 paper, box): received quantity exceeds the Purchase Order quantity."
+      ],
+      "correct": true
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/bc8a282586cd3d57ce7c3a3cc6a97862",
+      "cost_usd": 0.000135199999,
+      "time_seconds": 1.591,
+      "metrics_error": null,
+      "generation_count": 1,
+      "case_id": "wording-differences",
+      "invoice_id": "6acfabdc-0cd2-440a-b1f8-9ed56aff4c58",
+      "expected_status": "Auto-Approved",
+      "actual_status": "Auto-Approved",
+      "expected_reasons": [],
+      "actual_reasons": [],
+      "correct": true
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/92360e66cdcaeb085482e42f962bee3c",
+      "cost_usd": 0.0,
+      "time_seconds": 0.073,
+      "metrics_error": null,
+      "generation_count": 0,
+      "case_id": "missing-purchase-order",
+      "invoice_id": "d86a6b0d-66e5-4b3f-aca5-d4dce068c6da",
+      "expected_status": "In Review",
+      "actual_status": "In Review",
+      "expected_reasons": ["No Purchase Order is named on this Invoice."],
+      "actual_reasons": ["No Purchase Order is named on this Invoice."],
+      "correct": true
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/822b25c2dc4277d4e04578c3f6b5623e",
+      "cost_usd": 0.0,
+      "time_seconds": 0.106,
+      "metrics_error": null,
+      "generation_count": 0,
+      "case_id": "missing-goods-receipt",
+      "invoice_id": "4de5fb45-327d-4f59-a08b-4b3d292110aa",
+      "expected_status": "In Review",
+      "actual_status": "In Review",
+      "expected_reasons": [
+        "No Goods Receipt was found for Purchase Order PO-1002."
+      ],
+      "actual_reasons": [
+        "No Goods Receipt was found for Purchase Order PO-1002."
+      ],
+      "correct": true
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/1011e9f9f6f82ee63b8b8cbb52bca7a4",
+      "cost_usd": 0.0,
+      "time_seconds": 0.099,
+      "metrics_error": null,
+      "generation_count": 0,
+      "case_id": "duplicate-invoice",
+      "invoice_id": "94f4a3db-7e7f-419b-b9ed-fd11fd618352",
+      "expected_status": "In Review",
+      "actual_status": "In Review",
+      "expected_reasons": ["Duplicate Invoice: INV-0309 was already received."],
+      "actual_reasons": ["Duplicate Invoice: INV-0309 was already received."],
+      "correct": true
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/b6e8d379271e05ab9ede86f127127bc7",
+      "cost_usd": 0.0,
+      "time_seconds": 0.106,
+      "metrics_error": null,
+      "generation_count": 0,
+      "case_id": "possible-duplicate",
+      "invoice_id": "1ec66494-d1dc-4d5c-b9fb-682c7df2daf2",
+      "expected_status": "In Review",
+      "actual_status": "In Review",
+      "expected_reasons": [
+        "Possible Duplicate: INV-0309 has the same total and was received within 30 days."
+      ],
+      "actual_reasons": [
+        "Possible Duplicate: INV-0309 has the same total and was received within 30 days."
+      ],
+      "correct": true
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/1caa46301e35e043c5b41487887ffea2",
+      "cost_usd": 0.0,
+      "time_seconds": 0.033,
+      "metrics_error": null,
+      "generation_count": 0,
+      "case_id": "unknown-supplier",
+      "invoice_id": "0afae780-9831-4784-aeb1-1f9a1b20fa17",
+      "expected_status": "In Review",
+      "actual_status": "In Review",
+      "expected_reasons": ["Unknown Supplier"],
+      "actual_reasons": ["Unknown Supplier"],
+      "correct": true
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/b8a78f520b1a3d96df79155025c5a1c1",
+      "cost_usd": 0.0,
+      "time_seconds": 0.098,
+      "metrics_error": null,
+      "generation_count": 0,
+      "case_id": "total-over-limit",
+      "invoice_id": "582eca77-0636-4aad-b8a2-fe3ac0e147c4",
+      "expected_status": "In Review",
+      "actual_status": "In Review",
+      "expected_reasons": [
+        "Invoice total is at or above the Auto-Approval Limit of EUR 5,000.00."
+      ],
+      "actual_reasons": [
+        "Invoice total is at or above the Auto-Approval Limit of EUR 5,000.00."
+      ],
+      "correct": true
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/fa5eeeca657c852eb72ad30e1544e8b9",
+      "cost_usd": 0.0000948,
+      "time_seconds": 1.208,
+      "metrics_error": null,
+      "generation_count": 1,
+      "case_id": "unmatched-line",
+      "invoice_id": "a550d608-d343-44c7-b718-476a53f2f687",
+      "expected_status": "In Review",
+      "actual_status": "In Review",
+      "expected_reasons": [
+        "Line 1 (Extra packing charge): no paired Purchase Order line."
+      ],
+      "actual_reasons": [
+        "Line 1 (Extra packing charge): no paired Purchase Order line."
+      ],
+      "correct": true
+    }
+  ]
+}

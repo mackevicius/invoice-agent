@@ -1,12 +1,135 @@
 # Invoice Agent
 
-Checks supplier Invoices against Purchase Orders and Goods Receipts.
-Visitors get a private, seeded Demo Company and can upload an Invoice to watch
-its fields being read, its Supplier looked up, and its Three-Way Match in the
-Split view. No model calls are needed to browse the saved sample Invoices. Uploaded Invoices
-are Auto-Approved only when every rule passes and the total is under the
-Auto-Approval Limit. Otherwise they finish In Review with every failed check
-listed. Known Suppliers are checked for Duplicate Invoices and Possible Duplicates.
+[Open the live demo](https://invoice-agent-seven.vercel.app)
+
+Checks supplier Invoices against what the company ordered and what actually
+arrived. Correct Invoices under the Auto-Approval Limit are Auto-Approved;
+overcharges, missing goods, duplicates and other failed checks go to a Reviewer
+with plain reasons.
+
+AI reads documents and pairs differently worded lines. Rules in code decide
+whether an Invoice can be Auto-Approved, not the model. The app records decisions;
+it does not send payments.
+
+Every visitor gets a private Demo Company for 24 hours, with twelve saved sample
+Invoices and no sign-up. Browsing those samples makes no model calls.
+
+## Two-Minute Tour
+
+1. As **Submitter**, open **All** and select an **Auto-Approved** sample. Follow
+   the saved agent steps and compare the Invoice with its Purchase Order (what
+   was ordered) and Goods Receipt (what arrived).
+2. Select an **In Review** sample with a price or quantity mismatch. The red
+   cells show what failed; the reasons explain why it needs a person.
+3. Switch **Viewing as** to **Reviewer**. Open the **Review Queue** and approve
+   or reject a saved Invoice. Reject requires a Rejection Reason; a Reviewer
+   cannot decide an Invoice they uploaded.
+4. Switch to **Admin** to inspect the Auto-Approval Limit. Changes affect only
+   Invoices not yet decided, never the saved final decisions.
+
+For a live run, choose **Upload Invoice** and try the **Matching Invoice** or
+**Overcharged Invoice** sample PDF. Watch the steps as they happen, then inspect
+the comparison and, when available, the **Langfuse trace**. Live runs use the
+daily AI allowance; the saved samples remain available when it runs out.
+
+## Quality
+
+**No wrong Auto-Approvals in the labelled decision cases. CI enforces zero.**
+The model reads and pairs lines; code applies the approval rules. Every normal
+CI run exercises the same Process an Invoice interface and fails on any wrong
+Auto-Approval, even if a saved baseline would accept it. This is the tested
+meaning of the safety goal, not a claim that the app pays money or that AI
+cannot make mistakes.
+
+### Latest Real-Model Measurements
+
+Measured **11 November 2026**, using **OpenAI `gpt-4.1-mini`** locally with
+Postgres and pgvector. Links open the full JSON evidence, including sample
+checksums, field errors and per-Invoice Langfuse traces.
+
+| Eval                                                                                                                                      | Accuracy               | Wrong Auto-Approvals | Average cost / Invoice (USD) | Average time / Invoice |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | -------------------- | ---------------------------- | ---------------------- |
+| [Kaggle reading, 3 images](docs/evaluations/2026-11-11/reading-20261111T115557266167Z-34b595527e0945adaac99848c3cdaeeb.json)              | 22/45 fields (48.89%)  | Not scored           | $0.00155                     | 3.70 s                 |
+| [Generated reading, 4 PNG/PDF Invoices](docs/evaluations/2026-11-11/reading-20261111T121010786849Z-ec494fcb5d8a43b7ab172c775697193c.json) | 84/84 fields (100%)    | Not scored           | $0.00138                     | 2.86 s                 |
+| [Decisions, 14 synthetic cases](docs/evaluations/2026-11-11/decisions-20261111T121323585686Z-b2a642240106484db9e1fc9b3b4476d3.json)       | 14/14 decisions (100%) | 0                    | $0.0000164                   | 0.31 s                 |
+
+Decision evals start from labelled Invoice fields and use real model line
+pairing when needed; most cases need no model call. Their cost and time exclude
+document reading and are not end-to-end upload measurements.
+
+Reading accuracy counts labelled fields, not whole documents. The Kaggle result
+is weak; the perfect generated score does not cancel it out. These tiny samples
+are reproducible checks, not a representative estimate. See the
+[dataset credit, licences and scoring notes](#reading-accuracy).
+
+Cost and time come from Langfuse, averaged across every Invoice in each sample.
+Time covers the completed **Invoice run**, not just the model call; it excludes
+cloud queue delays and cold starts. These are local measurements, not hosted
+latency promises. The Kaggle report's measurements were recovered from its
+existing traces after fixing collection of spans with an upstream parent; the
+documents were not re-read for that recovery.
+
+### What Free CI Proves
+
+Normal CI uses scripted models: **14/14 decisions, zero wrong Auto-Approvals**;
+reading baselines of **32/45 (71.11%)** on Kaggle and **83/84 (98.81%)** on the
+generated sample. The reading fakes deliberately make mistakes to check the
+scorer. These are regression gates, not real-model quality or cost numbers.
+CI also blocks unexpected changes to field scores, decision statuses or reasons.
+See [tests](#checks-and-tests), [reading evals](#reading-accuracy),
+[decision evals](#decision-accuracy) and [paid eval commands](#live-model-evaluations).
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Browser[Browser] --> Web[Next.js on Vercel]
+    Web --> API[FastAPI on Lambda]
+    API --> Database[(Neon Postgres + pgvector)]
+    API --> Files[S3 Invoice files]
+    API --> Queue[SQS]
+    Queue --> Worker[LangGraph worker on Lambda]
+    Worker --> Files
+    Worker --> Database
+    Worker --> Model[OpenAI or Anthropic]
+    Worker -. traces .-> Langfuse[Langfuse]
+```
+
+The API stores an upload and queues its ID. The worker reads it, looks up the
+Supplier and purchase records through `ERPTools`, pairs lines, then runs the
+Three-Way Match and duplicate rules. It saves each step and the final decision;
+the browser polls once a second while an Invoice is Processing.
+
+**Stack:** Python 3.12, FastAPI, LangGraph and Pydantic; Next.js, React,
+TypeScript, Tailwind and shadcn/ui; Postgres 17 with pgvector and local FastEmbed
+embeddings. Langfuse records model calls, cost and timing. AWS SAM defines the
+Lambda, SQS and S3 infrastructure; an hourly Lambda removes expired Demo Companies.
+Locally, Docker Compose replaces Neon with Postgres, SQS with an in-process
+queue, and S3 with file storage in Postgres.
+
+The decisions behind the design: [serverless AWS](docs/adr/0001-serverless-aws-no-kubernetes.md),
+[ERP behind one service, not MCP](docs/adr/0002-erp-behind-one-service.md),
+[roles without login](docs/adr/0003-roles-without-login.md),
+[API layers](docs/adr/0004-api-organised-by-layer.md), and
+[AWS SAM](docs/adr/0005-aws-sam-for-infrastructure.md).
+
+## Known Limitations
+
+- This is a demo, not a payment system or a production approval authority.
+  Roles are fixed demo people, not authenticated identities. Use fictional,
+  non-sensitive uploads; Demo Companies expire after 24 hours, but Langfuse
+  trace retention is configured separately.
+- AI can misread a document or choose the wrong line pair. Deterministic rules
+  check those extracted values, not the original document's truth; zero wrong
+  Auto-Approvals in a small eval is not a guarantee for unseen Invoices.
+- One Purchase Order per Invoice and one currency per Demo Company. Reviewers
+  cannot edit the fields the model read. The ERP contains seeded records, not a
+  connection to a real company's purchasing system.
+- Reading samples are tiny and partly synthetic. Only labelled fields are
+  scored; decision evals start from known fields and do not measure reading.
+- Live uploads share daily AI limits and the hosted Lambda request limit
+  reduces the supported file size to about 4 MB. Local uploads allow 10 MB.
+  Langfuse trace links require access to the configured Langfuse project.
 
 ## Run Locally
 
@@ -478,22 +601,26 @@ both `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY`, and enabled tracing.
 `LANGFUSE_BASE_URL` selects the Langfuse region or server. Configure model
 pricing in Langfuse for custom model names.
 
+Live evals create Demo Companies, Invoices and usage in `TEST_DATABASE_URL`.
+Use a dedicated evaluation database. For a separate local database, create it
+once, then run all three samples:
+
 ```sh
-docker compose run --rm api uv run --locked python -m evals.reading --provider openai --model gpt-4.1-mini
-docker compose run --rm api uv run --locked python -m evals.decisions --provider openai --model gpt-4.1-mini
+docker compose exec -T db createdb -U invoice invoice_evals
+docker compose run --rm -e TEST_DATABASE_URL=postgresql://invoice:invoice@db:5432/invoice_evals api uv run --locked python -m evals.reading --provider openai --model gpt-4.1-mini
+docker compose run --rm -e TEST_DATABASE_URL=postgresql://invoice:invoice@db:5432/invoice_evals api uv run --locked python -m evals.reading --sample-dir evals/data/generated-v1 --provider openai --model gpt-4.1-mini
+docker compose run --rm -e TEST_DATABASE_URL=postgresql://invoice:invoice@db:5432/invoice_evals api uv run --locked python -m evals.decisions --provider openai --model gpt-4.1-mini
 ```
 
 Reading uses the real vision reader. Decisions keep the labelled Invoice fields
 and use real model line pairing, so document-reading errors do not obscure the
 decision score. Both use local embeddings and the same Process an Invoice
-interface as the app. Live evals create Demo Companies, Invoices and usage in
-`TEST_DATABASE_URL`; use a dedicated evaluation database. The usual daily AI
-limits still apply.
+interface as the app. The usual daily AI limits still apply.
 
 Each JSON report includes provider, model, date, sample checksum and scoring
 version, plus a trace link, USD cost and elapsed seconds for each Invoice.
 Cost sums the Langfuse generation and embedding observations; time is the
-completed root **Invoice run** span, not just model latency. Report averages
+completed **Invoice run** span, not just model latency. Report averages
 include every evaluated Invoice. Fake runs have `null` measurements, not zero.
 Missing traces or pricing also stay `null`, with `metrics_error` explaining why;
 live commands save those reports and fail rather than report a partial average.

@@ -1,0 +1,314 @@
+{
+  "evaluated_at": "2026-11-11T11:55:57.266167Z",
+  "sample_version": "kaggle-ocr-v3-first3-v1",
+  "sample_sha256": "cb087796cb3c0a4ba1ed61db6df9ddfd44edb1ba7135ba63bca66416b04f5bb2",
+  "scoring_version": "reading-fields-v1",
+  "provider": "openai",
+  "model": "gpt-4.1-mini",
+  "average_cost_usd": 0.0015458666666666669,
+  "average_time_seconds": 3.6993333333333336,
+  "sample_source": {
+    "title": "High-Quality Invoice Images for OCR",
+    "creator": "osama hosam Abdellatif",
+    "url": "https://www.kaggle.com/datasets/osamahosamabdellatif/high-quality-invoice-images-for-ocr",
+    "dataset_version": 3,
+    "image_directory": "batch_1/batch_1/batch1_1",
+    "labels_file": "batch_1/batch_1/batch1_1.csv",
+    "labels_file_sha256": "2480ee3ffc40578f954d02649147fd09be97795ed3290f8e56a7f8807a886477",
+    "database_license": "ODbL-1.0",
+    "contents_license": "DbCL-1.0"
+  },
+  "per_field": {
+    "supplier_name": {
+      "correct": 2,
+      "total": 3,
+      "accuracy": 0.6666666666666666
+    },
+    "invoice_number": {
+      "correct": 2,
+      "total": 3,
+      "accuracy": 0.6666666666666666
+    },
+    "issued_on": {
+      "correct": 1,
+      "total": 3,
+      "accuracy": 0.3333333333333333
+    },
+    "tax": {
+      "correct": 2,
+      "total": 3,
+      "accuracy": 0.6666666666666666
+    },
+    "total": {
+      "correct": 2,
+      "total": 3,
+      "accuracy": 0.6666666666666666
+    },
+    "lines.description": {
+      "correct": 5,
+      "total": 15,
+      "accuracy": 0.3333333333333333
+    },
+    "lines.quantity": {
+      "correct": 8,
+      "total": 15,
+      "accuracy": 0.5333333333333333
+    }
+  },
+  "overall": {
+    "correct": 22,
+    "total": 45,
+    "accuracy": 0.4888888888888889
+  },
+  "invoices": [
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/902ec9d9b8931dccd9c1b9cc50d20114",
+      "cost_usd": 0.0017496,
+      "time_seconds": 5.546,
+      "metrics_error": null,
+      "generation_count": 1,
+      "case_id": "batch1-0001",
+      "invoice_id": "50159ca8-35cb-4808-a706-fc4eceb88bc3",
+      "expected": {
+        "supplier_name": "Andrews, Kirby and Valdez",
+        "invoice_number": "51109338",
+        "purchase_order_number": null,
+        "issued_on": "2013-04-13",
+        "currency": null,
+        "lines": [
+          {
+            "description": "CLEARANCE! Fast Dell Desktop Computer PC DUAL CORE WINDOWS 10 4/8/16GB RAM",
+            "item_code": null,
+            "quantity": "3.00",
+            "unit_price": null
+          },
+          {
+            "description": "HP T520 Thin Client Computer AMD GX-212JC 1.2GHz 4GB RAM TESTED !! READ BELOW!!",
+            "item_code": null,
+            "quantity": "5.00",
+            "unit_price": null
+          },
+          {
+            "description": "gaming pc desktop computer",
+            "item_code": null,
+            "quantity": "1.00",
+            "unit_price": null
+          },
+          {
+            "description": "12-Core Gaming Computer Desktop PC Tower Affordable GAMING PC 8GB AMD Vega RGB",
+            "item_code": null,
+            "quantity": "3.00",
+            "unit_price": null
+          },
+          {
+            "description": "Custom Build Dell Optiplex 9020 MT i5-4570 3.20GHz Desktop Computer PC",
+            "item_code": null,
+            "quantity": "5.00",
+            "unit_price": null
+          },
+          {
+            "description": "Dell Optiplex 990 MT Computer PC Quad Core i7 3.4GHz 16GB 2TB HD Windows 10 Pro",
+            "item_code": null,
+            "quantity": "4.00",
+            "unit_price": null
+          },
+          {
+            "description": "Dell Core 2 Duo Desktop Computer | Windows XP Pro | 4GB | 500GB",
+            "item_code": null,
+            "quantity": "5.00",
+            "unit_price": null
+          }
+        ],
+        "subtotal": null,
+        "tax": "564.02",
+        "total": "6204.19"
+      },
+      "actual": null,
+      "errors": [
+        "supplier_name",
+        "invoice_number",
+        "issued_on",
+        "tax",
+        "total",
+        "lines.0.description",
+        "lines.0.quantity",
+        "lines.1.description",
+        "lines.1.quantity",
+        "lines.2.description",
+        "lines.2.quantity",
+        "lines.3.description",
+        "lines.3.quantity",
+        "lines.4.description",
+        "lines.4.quantity",
+        "lines.5.description",
+        "lines.5.quantity",
+        "lines.6.description",
+        "lines.6.quantity"
+      ]
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/b03985265a4dab0934e8ead2a932a6d5",
+      "cost_usd": 0.0015256,
+      "time_seconds": 2.707,
+      "metrics_error": null,
+      "generation_count": 1,
+      "case_id": "batch1-0002",
+      "invoice_id": "f8878329-5698-4def-ae1f-7f8a1966a93c",
+      "expected": {
+        "supplier_name": "Fitzpatrick and Sons",
+        "invoice_number": "12847181",
+        "purchase_order_number": null,
+        "issued_on": "2012-03-03",
+        "currency": null,
+        "lines": [
+          {
+            "description": "HP Desktop Computer PC Core i5 16GB 2TB HD 256GB SSD 22\" LCD Windows 10",
+            "item_code": null,
+            "quantity": "4.00",
+            "unit_price": null
+          },
+          {
+            "description": "CUSTOM BUILT AMD RYZEN THREADRIPPER GAMING COMPUTER, 32 GB RAM,",
+            "item_code": null,
+            "quantity": "3.00",
+            "unit_price": null
+          },
+          {
+            "description": "Fast Dell Optiplex Desktop PC Computer Dual Core 3.4Ghz 8GB 1TB Win 10 Pro WIFI",
+            "item_code": null,
+            "quantity": "1.00",
+            "unit_price": null
+          },
+          {
+            "description": "Dell Optiplex 790 Computer i7 @3.40 Ghz Quad Core 250GB 4GB Working",
+            "item_code": null,
+            "quantity": "3.00",
+            "unit_price": null
+          },
+          {
+            "description": "Vintage Microsolutions Pentium 133mhz Desktop Tower PC Windows 95 5.25 Floppy",
+            "item_code": null,
+            "quantity": "2.00",
+            "unit_price": null
+          }
+        ],
+        "subtotal": null,
+        "tax": "623.68",
+        "total": "6860.45"
+      },
+      "actual": {
+        "supplier_name": "Fitzpatrick and Sons",
+        "invoice_number": "12847181",
+        "purchase_order_number": null,
+        "issued_on": "2012-03-03",
+        "currency": "USD",
+        "lines": [
+          {
+            "description": "HP Desktop Computer PC Core i5 16GB 2TB HD 256GB SSD 22\" LCD Windows 10",
+            "item_code": null,
+            "quantity": "4",
+            "unit_price": "139.95"
+          },
+          {
+            "description": "CUSTOM BUILT AMD RYZEN THREADRIPPER GAMING COMPUTER , 32 GB RAM,",
+            "item_code": null,
+            "quantity": "3",
+            "unit_price": "1400.0"
+          },
+          {
+            "description": "Fast Dell Optiplex Desktop PC Computer Dual Core 3.4Ghz 8GB 1TB Win 10 Pro WIFI",
+            "item_code": null,
+            "quantity": "1",
+            "unit_price": "217.0"
+          },
+          {
+            "description": "Dell Optiplex 790 Computer i7 @ 3.40 Ghz Quad Core 250GB 4GB Working",
+            "item_code": null,
+            "quantity": "3",
+            "unit_price": "159.99"
+          },
+          {
+            "description": "Vintage Microsolutions Pentium 133mhz Desktop Tower PC Windows 95 5.25 Floppy",
+            "item_code": null,
+            "quantity": "2",
+            "unit_price": "390.0"
+          }
+        ],
+        "subtotal": "6236.77",
+        "tax": "623.68",
+        "total": "6860.45"
+      },
+      "errors": ["lines.1.description", "lines.3.description"]
+    },
+    {
+      "trace_url": "https://cloud.langfuse.com/project/cmvwulg6x02flad0jhj0nbdm2/traces/656b3720172156b87f48e8b82d9489da",
+      "cost_usd": 0.0013624,
+      "time_seconds": 2.845,
+      "metrics_error": null,
+      "generation_count": 1,
+      "case_id": "batch1-0003",
+      "invoice_id": "ffb0d836-9ccd-4344-9d1e-4df1204a829f",
+      "expected": {
+        "supplier_name": "Palmer Ltd",
+        "invoice_number": "19471831",
+        "purchase_order_number": null,
+        "issued_on": "2014-04-09",
+        "currency": null,
+        "lines": [
+          {
+            "description": "15\"x15\" White Decorative Coffee Table Top Lápis Lazuli Marquetery Patio Décor",
+            "item_code": null,
+            "quantity": "3.00",
+            "unit_price": null
+          },
+          {
+            "description": "4'x2' Marble Dining Table Top Pietra Dura Birds Inlay Art Furniture Decors B444",
+            "item_code": null,
+            "quantity": "5.00",
+            "unit_price": null
+          },
+          {
+            "description": "60 Inches Marble Dinning Table Top Hand Inlaid Garden Table with Gemstones",
+            "item_code": null,
+            "quantity": "5.00",
+            "unit_price": null
+          }
+        ],
+        "subtotal": null,
+        "tax": "4067.78",
+        "total": "44745.59"
+      },
+      "actual": {
+        "supplier_name": "Palmer Ltd",
+        "invoice_number": "19471831",
+        "purchase_order_number": null,
+        "issued_on": "2014-09-04",
+        "currency": "USD",
+        "lines": [
+          {
+            "description": "15\"x15\" White Decorative Coffee Table Top Lapis Lazuli Marquetery Patio Décor",
+            "item_code": null,
+            "quantity": "3",
+            "unit_price": "645.77"
+          },
+          {
+            "description": "4'x2' Marble Dining Table Top Pietra Dura Birds Inlay Art Furniture Decors B444",
+            "item_code": null,
+            "quantity": "5",
+            "unit_price": "1840.1"
+          },
+          {
+            "description": "60 Inches Marble Dinning Table Top Hand Inlaid Garden Table with Gemstones",
+            "item_code": null,
+            "quantity": "5",
+            "unit_price": "5908"
+          }
+        ],
+        "subtotal": "40677.81",
+        "tax": "4067.78",
+        "total": "44745.59"
+      },
+      "errors": ["issued_on", "lines.0.description"]
+    }
+  ]
+}
