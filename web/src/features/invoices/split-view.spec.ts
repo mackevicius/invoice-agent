@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import type { InvoiceDetail } from './api';
 
 test('a visitor selects an Invoice and returns to the same Demo Company', async ({
   page,
@@ -238,6 +239,84 @@ test('the Invoice header links to its trace only when a URL is present', async (
   await expect(detail.getByRole('heading', { name: 'INV-1042' })).toBeVisible();
   await expect(link).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test('an uploaded Invoice shows progress before the worker starts', async ({
+  page,
+}, testInfo) => {
+  const initialResponse = page.waitForResponse((response) =>
+    /\/api\/invoices\/[0-9a-f-]{36}$/.test(response.url()),
+  );
+  await page.goto('/');
+  const initialInvoice: InvoiceDetail = await (await initialResponse).json();
+  const queuedInvoice: InvoiceDetail = {
+    ...initialInvoice,
+    id: '00000000-0000-4000-8000-000000000001',
+    invoice_number: null,
+    supplier: null,
+    total: null,
+    status: 'Processing',
+    fields: null,
+    comparison: [],
+    reasons: [],
+    steps: initialInvoice.steps.map((step) => ({
+      ...step,
+      status: 'Pending',
+      outputs: null,
+      started_at: null,
+      completed_at: null,
+    })),
+  };
+  await page.route('**/api/invoices', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({ status: 202, json: queuedInvoice });
+    } else {
+      await route.continue();
+    }
+  });
+  await page.route(`**/api/invoices/${queuedInvoice.id}`, (route) =>
+    route.fulfill({ json: queuedInvoice }),
+  );
+
+  const sidebar = page.getByRole('complementary', { name: 'Invoices' });
+  const detail = page.getByRole('main', { name: 'Invoice details' });
+  await sidebar.getByRole('button', { name: 'Upload Invoice' }).click();
+  await detail
+    .getByRole('button', { name: 'Matching Invoice', exact: true })
+    .click();
+
+  const steps = detail.getByRole('list', { name: 'Agent steps' });
+  const readStep = steps
+    .getByRole('listitem')
+    .filter({ hasText: 'Read Invoice' });
+  const supplierStep = steps
+    .getByRole('listitem')
+    .filter({ hasText: 'Find Supplier' });
+  const loadingIcon = readStep.locator('svg.lucide-loader-circle');
+  await expect(readStep.getByText('Pending', { exact: true })).toBeVisible();
+  await expect(loadingIcon).toBeVisible();
+  await expect(loadingIcon).not.toHaveCSS('animation-name', 'none');
+  await expect(steps.locator('svg.lucide-loader-circle')).toHaveCount(1);
+  await expect(steps.getByText('Pending', { exact: true })).toHaveCount(8);
+  await page.screenshot({
+    path: testInfo.outputPath('queued-invoice.png'),
+    fullPage: true,
+  });
+
+  queuedInvoice.steps[0].status = 'Completed';
+  queuedInvoice.steps[1].status = 'Running';
+  await expect(readStep.getByText('Completed', { exact: true })).toBeVisible();
+  await expect(supplierStep.locator('svg.lucide-loader-circle')).toBeVisible();
+  await expect(steps.locator('svg.lucide-loader-circle')).toHaveCount(1);
+
+  queuedInvoice.status = 'In Review';
+  for (const [index, step] of queuedInvoice.steps.entries()) {
+    step.status = index < 2 ? 'Completed' : 'Skipped';
+  }
+  await expect(
+    detail.locator('header').getByText('In Review', { exact: true }),
+  ).toBeVisible();
+  await expect(steps.locator('svg.lucide-loader-circle')).toHaveCount(0);
 });
 
 test('a Submitter uploads an unknown Supplier Invoice and a Reviewer approves it', async ({

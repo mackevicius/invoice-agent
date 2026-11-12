@@ -184,6 +184,9 @@ export function InvoiceDetails({
   const [reason, setReason] = useState('');
   const reasonInput = useRef<HTMLTextAreaElement>(null);
   const rejectButton = useRef<HTMLButtonElement>(null);
+  const waitingToStart =
+    invoice.status === 'Processing' &&
+    invoice.steps.every((step) => step.status === 'Pending');
   const duplicates =
     invoice.steps.find(
       (step) => step.name === 'Check Duplicates' && step.status === 'Completed',
@@ -357,13 +360,15 @@ export function InvoiceDetails({
         <section className={styles.pipeline} aria-label="Agent progress">
           <h2>Agent steps</h2>
           <ol aria-label="Agent steps">
-            {invoice.steps.map((step) => {
+            {invoice.steps.map((step, index) => {
+              const active =
+                step.status === 'Running' || (waitingToStart && index === 0);
               const Icon =
                 step.status === 'Completed'
                   ? Check
                   : step.status === 'Failed'
                     ? TriangleAlert
-                    : step.status === 'Running'
+                    : active
                       ? LoaderCircle
                       : step.status === 'Skipped'
                         ? CircleMinus
@@ -382,9 +387,7 @@ export function InvoiceDetails({
                   <Icon
                     aria-hidden="true"
                     size={18}
-                    className={
-                      step.status === 'Running' ? styles.spin : undefined
-                    }
+                    className={active ? styles.spin : undefined}
                   />
                   <div>
                     <strong>{step.name}</strong>
